@@ -1,0 +1,32 @@
+{
+  "name": "claude-status-dashboard",
+  "version": "1.0.0",
+  "description": "Real-time status widget for Claude Code sessions — see what Claude is doing at a glance via a desktop overlay and system tray icon.",
+  "type": "module",
+  "main": "widget.cjs",
+  "scripts": {
+    "start": "electron widget.cjs",
+    "mcp": "node server.js"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "status",
+    "dashboard",
+    "electron",
+    "widget"
+  ],
+  "author": "ExPLiCiT",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ExPLiCiT3145/claude-status-dashboard.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  },
+  "devDependencies": {
+    "electron": "^41.1.1"
+  }
+}

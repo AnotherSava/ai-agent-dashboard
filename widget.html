@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Claude Status</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    background: #0d1117;
+    overflow: hidden;
+    user-select: none;
+    height: 100%;
+  }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #e6edf3;
+  }
+
+  .container {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Titlebar */
+  .titlebar {
+    display: flex;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid #21262d;
+    -webkit-app-region: drag;
+    cursor: move;
+    flex-shrink: 0;
+  }
+  .titlebar h1 {
+    font-size: 10px;
+    font-weight: 700;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    flex: 1;
+  }
+  .titlebar .count {
+    font-size: 9px;
+    color: #484f58;
+    margin-right: 8px;
+  }
+  .titlebar .controls {
+    display: flex;
+    gap: 4px;
+    -webkit-app-region: no-drag;
+  }
+  .titlebar .controls button {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    line-height: 1;
+    padding: 0;
+    transition: opacity 0.15s;
+    opacity: 0.7;
+  }
+  .titlebar .controls button:hover { opacity: 1; }
+  .btn-notif {
+    background: #a371f7;
+    color: #0d1117;
+    font-size: 7px !important;
+    font-weight: 900;
+  }
+  .btn-notif.off {
+    background: #484f58;
+  }
+  .btn-min {
+    background: #f0883e;
+    color: #0d1117;
+  }
+  .btn-close {
+    background: #f85149;
+    color: #0d1117;
+  }
+
+  /* Chat list */
+  .chats {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: #21262d transparent;
+  }
+  .chats::-webkit-scrollbar { width: 3px; }
+  .chats::-webkit-scrollbar-track { background: transparent; }
+  .chats::-webkit-scrollbar-thumb { background: #21262d; border-radius: 2px; }
+
+  .no-chats {
+    color: #484f58;
+    font-size: 11px;
+    text-align: center;
+    padding: 20px 0;
+    font-style: italic;
+  }
+
+  .chat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s;
+  }
+  .chat:hover { background: #1c2128; }
+
+  .chat::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 2px;
+  }
+  .chat.working::before { background: #f0883e; }
+  .chat.thinking::before { background: #a371f7; }
+  .chat.done::before { background: #3fb950; }
+  .chat.error::before { background: #f85149; }
+  .chat.idle::before { background: #484f58; }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .working .dot {
+    background: #f0883e;
+    box-shadow: 0 0 4px #f0883e88;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .thinking .dot {
+    background: #a371f7;
+    box-shadow: 0 0 4px #a371f788;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .done .dot { background: #3fb950; }
+  .error .dot {
+    background: #f85149;
+    animation: pulse 0.8s ease-in-out infinite;
+  }
+  .idle .dot { background: #484f58; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.6); }
+  }
+
+  .chat-info { flex: 1; min-width: 0; }
+  .chat-name {
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chat-label {
+    font-size: 9px;
+    color: #8b949e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .badge {
+    font-size: 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1px 5px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .working .badge { background: rgba(240,136,62,0.15); color: #f0883e; }
+  .thinking .badge { background: rgba(163,113,247,0.15); color: #a371f7; }
+  .done .badge { background: rgba(63,185,80,0.15); color: #3fb950; }
+  .error .badge { background: rgba(248,81,73,0.15); color: #f85149; }
+  .idle .badge { background: rgba(72,79,88,0.15); color: #484f58; }
+
+  .chat-enter { animation: slideIn 0.2s ease-out; }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .chat-close {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(248,81,73,0.15);
+    color: #f85149;
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+    -webkit-app-region: no-drag;
+  }
+  .chat:hover .chat-close { opacity: 0.7; }
+  .chat-close:hover { opacity: 1 !important; background: rgba(248,81,73,0.35); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="titlebar">
+    <h1>Claude Status</h1>
+    <span class="count" id="count"></span>
+    <div class="controls">
+      <button class="btn-notif" id="notifBtn" title="Toggle notifications">N</button>
+      <button class="btn-min" id="minBtn" title="Minimize to tray">&ndash;</button>
+      <button class="btn-close" id="closeBtn" title="Exit">&times;</button>
+    </div>
+  </div>
+  <div class="chats" id="root">
+    <div class="no-chats">Waiting for chats...</div>
+  </div>
+</div>
+
+<script>
+const root = document.getElementById('root');
+const countEl = document.getElementById('count');
+const notifBtn = document.getElementById('notifBtn');
+let prev = {};
+let retryDelay = 1000;
+let notificationsEnabled = true;
+
+// Window controls
+document.getElementById('minBtn').addEventListener('click', () => window.widget.minimize());
+document.getElementById('closeBtn').addEventListener('click', () => window.widget.close());
+notifBtn.addEventListener('click', () => {
+  notificationsEnabled = !notificationsEnabled;
+  notifBtn.classList.toggle('off', !notificationsEnabled);
+  notifBtn.title = notificationsEnabled ? 'Notifications ON' : 'Notifications OFF';
+});
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 5) return 'now';
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  return Math.floor(s / 3600) + 'h';
+}
+
+function notify(title, body) {
+  if (!notificationsEnabled) return;
+  new Notification(title, { body, silent: true });
+}
+
+function render(chats) {
+  if (!chats.length) {
+    root.innerHTML = '<div class="no-chats">Waiting for chats...</div>';
+    countEl.textContent = '';
+    prev = {};
+    return;
+  }
+
+  const active = chats.filter(c => c.status === 'working' || c.status === 'thinking').length;
+  countEl.textContent = active > 0 ? active + ' active' : chats.length + ' total';
+
+  const order = { working: 0, thinking: 1, error: 2, idle: 3, done: 4 };
+  chats.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || b.updated - a.updated);
+
+  // Check for status changes to notify
+  chats.forEach(c => {
+    if (prev[c.id] && prev[c.id] !== c.status) {
+      if (c.status === 'done') notify('Claude: Done', c.id);
+      if (c.status === 'error') notify('Claude: Error', c.id);
+    }
+  });
+
+  root.innerHTML = chats.map(c => {
+    const isNew = !prev[c.id];
+    return `<div class="chat ${c.status} ${isNew ? 'chat-enter' : ''}">
+      <div class="dot"></div>
+      <div class="chat-info">
+        <div class="chat-name">${esc(c.id)}</div>
+        ${c.label ? `<div class="chat-label">${esc(c.label)}</div>` : ''}
+      </div>
+      <span class="badge">${c.status}</span>
+      <button class="chat-close" onclick="dismissChat('${esc(c.id)}')" title="Dismiss">&times;</button>
+    </div>`;
+  }).join('');
+
+  prev = {};
+  chats.forEach(c => prev[c.id] = c.status);
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function dismissChat(id) {
+  fetch('http://127.0.0.1:7890/api/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'clear', id })
+  }).catch(() => {});
+}
+
+function connect() {
+  const es = new EventSource('http://127.0.0.1:7890/events');
+  es.onmessage = e => {
+    retryDelay = 1000;
+    render(JSON.parse(e.data));
+  };
+  es.onerror = () => {
+    es.close();
+    setTimeout(connect, retryDelay);
+    retryDelay = Math.min(retryDelay * 1.5, 10000);
+  };
+}
+
+connect();
+</script>
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Claude Status</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #21262d;
+  }
+  .no-chats {
+    color: #484f58;
+    font-size: 13px;
+    font-style: italic;
+    padding: 40px 0;
+    text-align: center;
+  }
+  .chat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #161b22;
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .chat::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+  }
+  .chat.working::before { background: #f0883e; }
+  .chat.thinking::before { background: #a371f7; }
+  .chat.done::before { background: #3fb950; }
+  .chat.error::before { background: #f85149; }
+  .chat.idle::before { background: #484f58; }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .working .dot { background: #f0883e; box-shadow: 0 0 8px #f0883e88; animation: pulse 1.5s ease-in-out infinite; }
+  .thinking .dot { background: #a371f7; box-shadow: 0 0 8px #a371f788; animation: pulse 2s ease-in-out infinite; }
+  .done .dot { background: #3fb950; box-shadow: 0 0 6px #3fb95066; }
+  .error .dot { background: #f85149; box-shadow: 0 0 8px #f8514988; animation: pulse 0.8s ease-in-out infinite; }
+  .idle .dot { background: #484f58; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .chat-info { flex: 1; min-width: 0; }
+  .chat-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chat-label {
+    font-size: 12px;
+    color: #8b949e;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chat-badge {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+  .working .chat-badge { background: #f0883e22; color: #f0883e; }
+  .thinking .chat-badge { background: #a371f722; color: #a371f7; }
+  .done .chat-badge { background: #3fb95022; color: #3fb950; }
+  .error .chat-badge { background: #f8514922; color: #f85149; }
+  .idle .chat-badge { background: #484f5822; color: #484f58; }
+
+  .chat-time {
+    font-size: 11px;
+    color: #484f58;
+    flex-shrink: 0;
+  }
+
+  /* Fade-in animation for new chats */
+  .chat-enter {
+    animation: slideIn 0.3s ease-out;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Status change flash */
+  .chat.flash {
+    background: #1c2333;
+  }
+</style>
+</head>
+<body>
+<h1>Claude Code &mdash; Live Status</h1>
+<div id="root"><div class="no-chats">No active chats</div></div>
+<script>
+const root = document.getElementById('root');
+let prev = {};
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return s + 's ago';
+  if (s < 3600) return Math.floor(s / 60) + 'm ago';
+  return Math.floor(s / 3600) + 'h ago';
+}
+
+function render(chats) {
+  if (!chats.length) {
+    root.innerHTML = '<div class="no-chats">No active chats</div>';
+    prev = {};
+    return;
+  }
+  // Sort: working/thinking first, then done, then idle
+  const order = { working: 0, thinking: 1, error: 2, idle: 3, done: 4 };
+  chats.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || b.updated - a.updated);
+
+  root.innerHTML = chats.map(c => {
+    const isNew = !prev[c.id];
+    const changed = prev[c.id] && prev[c.id] !== c.status;
+    return `<div class="chat ${c.status} ${isNew ? 'chat-enter' : ''} ${changed ? 'flash' : ''}">
+      <div class="dot"></div>
+      <div class="chat-info">
+        <div class="chat-name">${esc(c.id)}</div>
+        ${c.label ? `<div class="chat-label">${esc(c.label)}</div>` : ''}
+      </div>
+      <span class="chat-badge">${c.status}</span>
+      <span class="chat-time">${timeAgo(c.updated)}</span>
+    </div>`;
+  }).join('');
+
+  prev = {};
+  chats.forEach(c => prev[c.id] = c.status);
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// SSE
+const es = new EventSource('/events');
+es.onmessage = e => render(JSON.parse(e.data));
+es.onerror = () => setTimeout(() => location.reload(), 3000);
+
+// Refresh timestamps every 10s
+setInterval(() => {
+  document.querySelectorAll('.chat-time').forEach(el => {
+    // re-render via next SSE
+  });
+}, 10000);
+</script>
+</body>
+</html>
