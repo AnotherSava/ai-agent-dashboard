@@ -1,0 +1,12 @@
+{
+  "devto": {
+    "api_key": "YOUR_DEVTO_API_KEY"
+  },
+  "hashnode": {
+    "api_key": "YOUR_HASHNODE_PAT",
+    "publication_id": "YOUR_HASHNODE_PUBLICATION_ID"
+  },
+  "tags": ["claude", "mcp", "electron", "opensource"],
+  "repo_url": "https://github.com/Idevelopusefulstuff/claude-status-dashboard",
+  "canonical_url": null
+}

@@ -1,2 +1,4 @@
 node_modules/
 *.log
+publish_config.json
+.medium_session.json

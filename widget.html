@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Claude Status</title>
+<title>AI Status</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -112,7 +112,7 @@
   .chat {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     padding: 5px 8px;
     background: #161b22;
     border: 1px solid #21262d;
@@ -135,6 +135,24 @@
   .chat.done::before { background: #3fb950; }
   .chat.error::before { background: #f85149; }
   .chat.idle::before { background: #484f58; }
+
+  /* Source icon */
+  .source-icon {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 3px;
+    color: #0d1117;
+  }
+  .source-icon.claude { background: #e87040; }
+  .source-icon.codex { background: #10a37f; }
+  .source-icon.openwebui { background: #3b82f6; }
+  .source-icon.unknown { background: #484f58; }
 
   .dot {
     width: 6px; height: 6px;
@@ -224,7 +242,7 @@
 <body>
 <div class="container">
   <div class="titlebar">
-    <h1>Claude Status</h1>
+    <h1>AI Status</h1>
     <span class="count" id="count"></span>
     <div class="controls">
       <button class="btn-notif" id="notifBtn" title="Toggle notifications">N</button>
@@ -233,7 +251,7 @@
     </div>
   </div>
   <div class="chats" id="root">
-    <div class="no-chats">Waiting for chats...</div>
+    <div class="no-chats">Waiting for sessions...</div>
   </div>
 </div>
 
@@ -244,6 +262,13 @@ const notifBtn = document.getElementById('notifBtn');
 let prev = {};
 let retryDelay = 1000;
 let notificationsEnabled = true;
+
+const SOURCE_LABELS = {
+  claude: 'C',
+  codex: 'X',
+  openwebui: 'W',
+  unknown: '?'
+};
 
 // Window controls
 document.getElementById('minBtn').addEventListener('click', () => window.widget.minimize());
@@ -267,9 +292,16 @@ function notify(title, body) {
   new Notification(title, { body, silent: true });
 }
 
+function sourceIcon(src) {
+  const s = (src || 'unknown').toLowerCase();
+  const cls = SOURCE_LABELS[s] ? s : 'unknown';
+  const letter = SOURCE_LABELS[s] || s.charAt(0).toUpperCase();
+  return `<div class="source-icon ${cls}" title="${esc(src || 'unknown')}">${letter}</div>`;
+}
+
 function render(chats) {
   if (!chats.length) {
-    root.innerHTML = '<div class="no-chats">Waiting for chats...</div>';
+    root.innerHTML = '<div class="no-chats">Waiting for sessions...</div>';
     countEl.textContent = '';
     prev = {};
     return;
@@ -284,14 +316,16 @@ function render(chats) {
   // Check for status changes to notify
   chats.forEach(c => {
     if (prev[c.id] && prev[c.id] !== c.status) {
-      if (c.status === 'done') notify('Claude: Done', c.id);
-      if (c.status === 'error') notify('Claude: Error', c.id);
+      const src = (c.source || 'AI').charAt(0).toUpperCase() + (c.source || 'AI').slice(1);
+      if (c.status === 'done') notify(src + ': Done', c.id);
+      if (c.status === 'error') notify(src + ': Error', c.id);
     }
   });
 
   root.innerHTML = chats.map(c => {
     const isNew = !prev[c.id];
     return `<div class="chat ${c.status} ${isNew ? 'chat-enter' : ''}">
+      ${sourceIcon(c.source)}
       <div class="dot"></div>
       <div class="chat-info">
         <div class="chat-name">${esc(c.id)}</div>

@@ -44,7 +44,7 @@ mcp.tool(
       lockedChatId = chat_id;
     }
     const id = lockedChatId;
-    postStatus({ action: "set", id, status, label: label || "", updated: Date.now() });
+    postStatus({ action: "set", id, status, label: label || "", source: "claude", updated: Date.now() });
     return { content: [{ type: "text", text: `Status set: ${id} → ${status}` }] };
   }
 );

@@ -41,7 +41,7 @@ const httpServer = http.createServer((req, res) => {
       try {
         const msg = JSON.parse(body);
         if (msg.action === "set") {
-          chats.set(msg.id, { id: msg.id, status: msg.status, label: msg.label, updated: msg.updated });
+          chats.set(msg.id, { id: msg.id, status: msg.status, label: msg.label, source: msg.source || "unknown", updated: msg.updated });
         } else if (msg.action === "clear") {
           chats.delete(msg.id);
         }
@@ -111,7 +111,7 @@ function getPosition(sw, sh, winW, winH, margin) {
 function createTray() {
   const icon = nativeImage.createFromPath(path.join(__dirname, "claude-status.ico"));
   tray = new Tray(icon);
-  tray.setToolTip("Claude Status");
+  tray.setToolTip("AI Status Dashboard");
 
   tray.on("click", () => {
     if (win) {
