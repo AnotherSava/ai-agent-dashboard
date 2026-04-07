@@ -70,15 +70,19 @@
     opacity: 0.7;
   }
   .titlebar .controls button:hover { opacity: 1; }
+  .btn-settings {
+    background: #8b949e;
+    color: #0d1117;
+    font-size: 9px !important;
+    font-weight: 700;
+  }
   .btn-notif {
     background: #a371f7;
     color: #0d1117;
     font-size: 7px !important;
     font-weight: 900;
   }
-  .btn-notif.off {
-    background: #484f58;
-  }
+  .btn-notif.off { background: #484f58; }
   .btn-min {
     background: #f0883e;
     color: #0d1117;
@@ -87,6 +91,10 @@
     background: #f85149;
     color: #0d1117;
   }
+
+  /* Tab content areas */
+  .tab-content { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+  .tab-content.active { display: flex; }
 
   /* Chat list */
   .chats {
@@ -159,21 +167,10 @@
     border-radius: 50%;
     flex-shrink: 0;
   }
-  .working .dot {
-    background: #f0883e;
-    box-shadow: 0 0 4px #f0883e88;
-    animation: pulse 1.5s ease-in-out infinite;
-  }
-  .thinking .dot {
-    background: #a371f7;
-    box-shadow: 0 0 4px #a371f788;
-    animation: pulse 2s ease-in-out infinite;
-  }
+  .working .dot { background: #f0883e; box-shadow: 0 0 4px #f0883e88; animation: pulse 1.5s ease-in-out infinite; }
+  .thinking .dot { background: #a371f7; box-shadow: 0 0 4px #a371f788; animation: pulse 2s ease-in-out infinite; }
   .done .dot { background: #3fb950; }
-  .error .dot {
-    background: #f85149;
-    animation: pulse 0.8s ease-in-out infinite;
-  }
+  .error .dot { background: #f85149; animation: pulse 0.8s ease-in-out infinite; }
   .idle .dot { background: #484f58; }
 
   @keyframes pulse {
@@ -182,29 +179,12 @@
   }
 
   .chat-info { flex: 1; min-width: 0; }
-  .chat-name {
-    font-size: 11px;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .chat-label {
-    font-size: 9px;
-    color: #8b949e;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+  .chat-name { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-label { font-size: 9px; color: #8b949e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .badge {
-    font-size: 8px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 1px 5px;
-    border-radius: 8px;
-    flex-shrink: 0;
+    font-size: 8px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 1px 5px; border-radius: 8px; flex-shrink: 0;
   }
   .working .badge { background: rgba(240,136,62,0.15); color: #f0883e; }
   .thinking .badge { background: rgba(163,113,247,0.15); color: #a371f7; }
@@ -219,39 +199,219 @@
   }
 
   .chat-close {
-    width: 14px; height: 14px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(248,81,73,0.15);
-    color: #f85149;
-    font-size: 10px;
-    line-height: 1;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    opacity: 0;
-    transition: opacity 0.15s, background 0.15s;
-    -webkit-app-region: no-drag;
+    width: 14px; height: 14px; border-radius: 50%; border: none;
+    background: rgba(248,81,73,0.15); color: #f85149; font-size: 10px;
+    line-height: 1; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; opacity: 0;
+    transition: opacity 0.15s, background 0.15s; -webkit-app-region: no-drag;
   }
   .chat:hover .chat-close { opacity: 0.7; }
   .chat-close:hover { opacity: 1 !important; background: rgba(248,81,73,0.35); }
+
+  /* Settings panel */
+  .settings {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: #21262d transparent;
+  }
+  .settings::-webkit-scrollbar { width: 3px; }
+  .settings::-webkit-scrollbar-thumb { background: #21262d; border-radius: 2px; }
+
+  .settings-section {
+    margin-bottom: 14px;
+  }
+  .settings-section h2 {
+    font-size: 9px;
+    font-weight: 700;
+    color: #484f58;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #21262d;
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+  }
+  .setting-label {
+    font-size: 11px;
+    color: #e6edf3;
+  }
+  .setting-value {
+    font-size: 10px;
+    color: #8b949e;
+  }
+
+  /* Toggle switch */
+  .toggle {
+    width: 28px; height: 14px;
+    background: #21262d;
+    border-radius: 7px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    -webkit-app-region: no-drag;
+  }
+  .toggle.on { background: #3fb950; }
+  .toggle::after {
+    content: '';
+    width: 10px; height: 10px;
+    background: #e6edf3;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px; left: 2px;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 16px; }
+
+  /* Select dropdown */
+  .setting-select {
+    background: #161b22;
+    border: 1px solid #21262d;
+    color: #e6edf3;
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+
+  /* About */
+  .about-logo {
+    text-align: center;
+    padding: 8px 0 4px;
+  }
+  .about-logo .logo-text {
+    font-size: 16px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #e87040, #a371f7, #3fb950);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 1px;
+  }
+  .about-version {
+    text-align: center;
+    font-size: 10px;
+    color: #484f58;
+    margin-bottom: 10px;
+  }
+  .about-desc {
+    font-size: 10px;
+    color: #8b949e;
+    line-height: 1.5;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .about-link {
+    display: block;
+    text-align: center;
+    font-size: 10px;
+    color: #58a6ff;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+  }
+  .about-link:hover { text-decoration: underline; }
+
+  .about-sources {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin: 8px 0;
+  }
+  .about-sources .source-icon {
+    width: 20px; height: 20px;
+    font-size: 11px;
+  }
+
+  .about-author {
+    text-align: center;
+    font-size: 9px;
+    color: #484f58;
+    margin-top: 8px;
+  }
 </style>
 </head>
 <body>
 <div class="container">
   <div class="titlebar">
-    <h1>AI Status</h1>
+    <h1 id="titleText">AI Status</h1>
     <span class="count" id="count"></span>
     <div class="controls">
+      <button class="btn-settings" id="settingsBtn" title="Settings">&#9881;</button>
       <button class="btn-notif" id="notifBtn" title="Toggle notifications">N</button>
       <button class="btn-min" id="minBtn" title="Minimize to tray">&ndash;</button>
       <button class="btn-close" id="closeBtn" title="Exit">&times;</button>
     </div>
   </div>
-  <div class="chats" id="root">
-    <div class="no-chats">Waiting for sessions...</div>
+
+  <!-- Status tab -->
+  <div class="tab-content active" id="statusTab">
+    <div class="chats" id="root">
+      <div class="no-chats">Waiting for sessions...</div>
+    </div>
+  </div>
+
+  <!-- Settings tab -->
+  <div class="tab-content" id="settingsTab">
+    <div class="settings">
+
+      <div class="settings-section">
+        <h2>Settings</h2>
+        <div class="setting-row">
+          <span class="setting-label">Notifications</span>
+          <div class="toggle on" id="toggleNotif"></div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Always on top</span>
+          <div class="toggle on" id="toggleOnTop"></div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Auto-dismiss done</span>
+          <div class="toggle" id="toggleAutoDismiss"></div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Position</span>
+          <select class="setting-select" id="posSelect">
+            <option value="bottom-right" selected>Bottom Right</option>
+            <option value="bottom-left">Bottom Left</option>
+            <option value="top-right">Top Right</option>
+            <option value="top-left">Top Left</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Port</span>
+          <span class="setting-value">7890</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h2>About</h2>
+        <div class="about-logo">
+          <div class="logo-text">AI STATUS</div>
+        </div>
+        <div class="about-version">v1.1.0</div>
+        <div class="about-desc">
+          Universal real-time status widget for AI coding agents.<br>
+          Track Claude, Codex, OpenWebUI, and more.
+        </div>
+        <div class="about-sources">
+          <div class="source-icon claude" title="Claude Code">C</div>
+          <div class="source-icon codex" title="Codex">X</div>
+          <div class="source-icon openwebui" title="OpenWebUI">W</div>
+          <div class="source-icon unknown" title="Any tool">+</div>
+        </div>
+        <a class="about-link" id="githubLink">github.com/Idevelopusefulstuff/claude-status-dashboard</a>
+        <div class="about-author">Built by ExPLiCiT</div>
+      </div>
+
+    </div>
   </div>
 </div>
 
@@ -259,24 +419,81 @@
 const root = document.getElementById('root');
 const countEl = document.getElementById('count');
 const notifBtn = document.getElementById('notifBtn');
+const settingsBtn = document.getElementById('settingsBtn');
+const titleText = document.getElementById('titleText');
+const statusTab = document.getElementById('statusTab');
+const settingsTab = document.getElementById('settingsTab');
+
 let prev = {};
 let retryDelay = 1000;
 let notificationsEnabled = true;
+let autoDismiss = false;
+let autoDismissTimers = {};
+let showingSettings = false;
 
-const SOURCE_LABELS = {
-  claude: 'C',
-  codex: 'X',
-  openwebui: 'W',
-  unknown: '?'
-};
+const SOURCE_LABELS = { claude: 'C', codex: 'X', openwebui: 'W', unknown: '?' };
 
 // Window controls
 document.getElementById('minBtn').addEventListener('click', () => window.widget.minimize());
 document.getElementById('closeBtn').addEventListener('click', () => window.widget.close());
-notifBtn.addEventListener('click', () => {
-  notificationsEnabled = !notificationsEnabled;
-  notifBtn.classList.toggle('off', !notificationsEnabled);
-  notifBtn.title = notificationsEnabled ? 'Notifications ON' : 'Notifications OFF';
+
+// Settings toggle
+settingsBtn.addEventListener('click', () => {
+  showingSettings = !showingSettings;
+  statusTab.classList.toggle('active', !showingSettings);
+  settingsTab.classList.toggle('active', showingSettings);
+  titleText.textContent = showingSettings ? 'Settings' : 'AI Status';
+  settingsBtn.style.opacity = showingSettings ? '1' : '';
+});
+
+// Notification toggle (both titlebar button and settings toggle)
+const toggleNotif = document.getElementById('toggleNotif');
+function setNotif(on) {
+  notificationsEnabled = on;
+  notifBtn.classList.toggle('off', !on);
+  toggleNotif.classList.toggle('on', on);
+  notifBtn.title = on ? 'Notifications ON' : 'Notifications OFF';
+}
+notifBtn.addEventListener('click', () => setNotif(!notificationsEnabled));
+toggleNotif.addEventListener('click', () => setNotif(!notificationsEnabled));
+
+// Always on top toggle
+const toggleOnTop = document.getElementById('toggleOnTop');
+toggleOnTop.addEventListener('click', () => {
+  const on = !toggleOnTop.classList.contains('on');
+  toggleOnTop.classList.toggle('on', on);
+  // Send to main process
+  fetch('http://127.0.0.1:7890/api/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'config', key: 'alwaysOnTop', value: on })
+  }).catch(() => {});
+});
+
+// Auto-dismiss toggle
+const toggleAutoDismiss = document.getElementById('toggleAutoDismiss');
+toggleAutoDismiss.addEventListener('click', () => {
+  autoDismiss = !autoDismiss;
+  toggleAutoDismiss.classList.toggle('on', autoDismiss);
+});
+
+// Position select
+const posSelect = document.getElementById('posSelect');
+posSelect.addEventListener('change', () => {
+  fetch('http://127.0.0.1:7890/api/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'config', key: 'position', value: posSelect.value })
+  }).catch(() => {});
+});
+
+// GitHub link
+document.getElementById('githubLink').addEventListener('click', () => {
+  fetch('http://127.0.0.1:7890/api/status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'config', key: 'openUrl', value: 'https://github.com/Idevelopusefulstuff/claude-status-dashboard' })
+  }).catch(() => {});
 });
 
 function timeAgo(ts) {
@@ -313,12 +530,22 @@ function render(chats) {
   const order = { working: 0, thinking: 1, error: 2, idle: 3, done: 4 };
   chats.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || b.updated - a.updated);
 
-  // Check for status changes to notify
   chats.forEach(c => {
     if (prev[c.id] && prev[c.id] !== c.status) {
       const src = (c.source || 'AI').charAt(0).toUpperCase() + (c.source || 'AI').slice(1);
       if (c.status === 'done') notify(src + ': Done', c.id);
       if (c.status === 'error') notify(src + ': Error', c.id);
+    }
+    // Auto-dismiss done sessions after 30s
+    if (autoDismiss && c.status === 'done' && !autoDismissTimers[c.id]) {
+      autoDismissTimers[c.id] = setTimeout(() => {
+        dismissChat(c.id);
+        delete autoDismissTimers[c.id];
+      }, 30000);
+    }
+    if (c.status !== 'done' && autoDismissTimers[c.id]) {
+      clearTimeout(autoDismissTimers[c.id]);
+      delete autoDismissTimers[c.id];
     }
   });
 

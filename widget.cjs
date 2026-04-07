@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, Tray, Menu, nativeImage, ipcMain } = require("electron");
+const { app, BrowserWindow, screen, Tray, Menu, nativeImage, ipcMain, shell } = require("electron");
 const path = require("path");
 const http = require("http");
 
@@ -42,10 +42,19 @@ const httpServer = http.createServer((req, res) => {
         const msg = JSON.parse(body);
         if (msg.action === "set") {
           chats.set(msg.id, { id: msg.id, status: msg.status, label: msg.label, source: msg.source || "unknown", updated: msg.updated });
+          broadcast();
         } else if (msg.action === "clear") {
           chats.delete(msg.id);
+          broadcast();
+        } else if (msg.action === "config") {
+          if (msg.key === "alwaysOnTop" && win) {
+            win.setAlwaysOnTop(!!msg.value, msg.value ? "floating" : undefined);
+          } else if (msg.key === "position") {
+            reposition(msg.value);
+          } else if (msg.key === "openUrl") {
+            shell.openExternal(msg.value);
+          }
         }
-        broadcast();
         res.writeHead(200);
         res.end("ok");
       } catch {
