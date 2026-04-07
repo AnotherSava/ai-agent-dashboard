@@ -4,6 +4,8 @@ A real-time desktop widget that shows what your Claude Code sessions are doing. 
 
 ![Widget Preview](https://img.shields.io/badge/electron-41+-blue) ![MCP](https://img.shields.io/badge/MCP-compatible-green) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
+![Claude Status Dashboard](screenshot.png)
+
 ## How It Works
 
 ```
