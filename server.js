@@ -12,7 +12,7 @@ function postStatus(data) {
   const req = http.request(
     {
       hostname: "127.0.0.1",
-      port: 7890,
+      port: 9077,
       path: "/api/status",
       method: "POST",
       headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) },

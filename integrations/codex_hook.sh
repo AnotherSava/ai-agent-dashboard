@@ -6,7 +6,7 @@
 #   source codex_hook.sh   # loads the wrapper function
 #   codex "fix the bug"    # auto-reports working/done to dashboard
 
-DASHBOARD="http://127.0.0.1:7890/api/status"
+DASHBOARD="http://127.0.0.1:9077/api/status"
 
 _status_post() {
   curl -s -X POST "$DASHBOARD" \

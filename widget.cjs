@@ -17,7 +17,7 @@ function broadcast() {
   }
 }
 
-// HTTP server on port 7890 — receives POSTs from MCP, serves SSE to widget renderer
+// HTTP server on port 9077 — receives POSTs from MCP, serves SSE to widget renderer
 const httpServer = http.createServer((req, res) => {
   // SSE endpoint for the renderer
   if (req.url === "/events") {
@@ -69,7 +69,7 @@ const httpServer = http.createServer((req, res) => {
   res.end();
 });
 
-httpServer.listen(7890, "127.0.0.1");
+httpServer.listen(9077, "127.0.0.1");
 
 function createWindow() {
   const display = screen.getPrimaryDisplay();

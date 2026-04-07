@@ -1,6 +1,6 @@
 """
 title: AI Status Dashboard
-author: ExPLiCiT
+author: IDevUsefulStuff
 version: 1.0.0
 description: Reports model activity to the AI Status Dashboard widget. Drop this into OpenWebUI as a Filter function.
 """
@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 class Filter:
     class Valves(BaseModel):
         dashboard_url: str = Field(
-            default="http://host.docker.internal:7890",
+            default="http://host.docker.internal:9077",
             description="Status dashboard URL (use host.docker.internal from Docker)",
         )
 

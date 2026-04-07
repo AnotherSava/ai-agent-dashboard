@@ -129,13 +129,31 @@ status("my-task", "done")
 | **--** | Minimize to tray |
 | **x** | Quit |
 
-## Auto-Start (Windows)
+## Desktop Shortcut / Taskbar Pin (Windows)
 
-Use `launch.vbs` or add a shortcut to your Startup folder:
+Create a shortcut you can pin to your taskbar:
+
+```powershell
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\AI Status.lnk")
+$Shortcut.TargetPath = "$PWD\node_modules\electron\dist\electron.exe"
+$Shortcut.Arguments = "widget.cjs"
+$Shortcut.WorkingDirectory = "$PWD"
+$Shortcut.IconLocation = "$PWD\claude-status.ico,0"
+$Shortcut.Save()
+```
+
+Then right-click the shortcut on your Desktop and select **Pin to taskbar**.
+
+## Auto-Start on Login (Windows)
+
+Copy the shortcut (or `launch.vbs`) to your Startup folder:
 
 ```
 %APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 ```
+
+`launch.vbs` launches without a console window.
 
 ## License
 

@@ -387,7 +387,7 @@
         </div>
         <div class="setting-row">
           <span class="setting-label">Port</span>
-          <span class="setting-value">7890</span>
+          <span class="setting-value">9077</span>
         </div>
       </div>
 
@@ -408,7 +408,7 @@
           <div class="source-icon unknown" title="Any tool">+</div>
         </div>
         <a class="about-link" id="githubLink">github.com/Idevelopusefulstuff/claude-status-dashboard</a>
-        <div class="about-author">Built by ExPLiCiT</div>
+        <div class="about-author">Built by IDevUsefulStuff</div>
       </div>
 
     </div>
@@ -463,7 +463,7 @@ toggleOnTop.addEventListener('click', () => {
   const on = !toggleOnTop.classList.contains('on');
   toggleOnTop.classList.toggle('on', on);
   // Send to main process
-  fetch('http://127.0.0.1:7890/api/status', {
+  fetch('http://127.0.0.1:9077/api/status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'config', key: 'alwaysOnTop', value: on })
@@ -480,7 +480,7 @@ toggleAutoDismiss.addEventListener('click', () => {
 // Position select
 const posSelect = document.getElementById('posSelect');
 posSelect.addEventListener('change', () => {
-  fetch('http://127.0.0.1:7890/api/status', {
+  fetch('http://127.0.0.1:9077/api/status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'config', key: 'position', value: posSelect.value })
@@ -489,7 +489,7 @@ posSelect.addEventListener('change', () => {
 
 // GitHub link
 document.getElementById('githubLink').addEventListener('click', () => {
-  fetch('http://127.0.0.1:7890/api/status', {
+  fetch('http://127.0.0.1:9077/api/status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'config', key: 'openUrl', value: 'https://github.com/Idevelopusefulstuff/claude-status-dashboard' })
@@ -574,7 +574,7 @@ function esc(s) {
 }
 
 function dismissChat(id) {
-  fetch('http://127.0.0.1:7890/api/status', {
+  fetch('http://127.0.0.1:9077/api/status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'clear', id })
@@ -582,7 +582,7 @@ function dismissChat(id) {
 }
 
 function connect() {
-  const es = new EventSource('http://127.0.0.1:7890/events');
+  const es = new EventSource('http://127.0.0.1:9077/events');
   es.onmessage = e => {
     retryDelay = 1000;
     render(JSON.parse(e.data));

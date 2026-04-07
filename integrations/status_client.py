@@ -13,7 +13,7 @@ import time
 import urllib.request
 
 
-def status(chat_id: str, state: str, label: str = "", source: str = "script", url: str = "http://127.0.0.1:7890"):
+def status(chat_id: str, state: str, label: str = "", source: str = "script", url: str = "http://127.0.0.1:9077"):
     data = json.dumps({
         "action": "set",
         "id": chat_id,

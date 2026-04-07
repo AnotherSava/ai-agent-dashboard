@@ -6,7 +6,27 @@
   "main": "widget.cjs",
   "scripts": {
     "start": "electron widget.cjs",
-    "mcp": "node server.js"
+    "mcp": "node server.js",
+    "build": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.idevusefulstuff.ai-status",
+    "productName": "AI Status",
+    "win": {
+      "target": "portable",
+      "icon": "claude-status.ico"
+    },
+    "portable": {
+      "artifactName": "AI-Status.exe"
+    },
+    "files": [
+      "widget.cjs",
+      "widget.html",
+      "dashboard.html",
+      "preload.cjs",
+      "server.js",
+      "claude-status.ico"
+    ]
   },
   "keywords": [
     "claude",
@@ -17,16 +37,17 @@
     "electron",
     "widget"
   ],
-  "author": "ExPLiCiT",
+  "author": "IDevUsefulStuff",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ExPLiCiT3145/claude-status-dashboard.git"
+    "url": "git+https://github.com/Idevelopusefulstuff/claude-status-dashboard.git"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
-    "electron": "^41.1.1"
+    "electron": "^41.1.1",
+    "electron-packager": "^17.1.2"
   }
 }
