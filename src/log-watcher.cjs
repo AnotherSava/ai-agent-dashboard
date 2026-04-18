@@ -135,4 +135,4 @@ function stopAll() {
   watchers.clear();
 }
 
-module.exports = { startWatching, stopWatching, stopAll, inferState, splitComplete, _watchers: watchers };
+module.exports = { startWatching, stopWatching, stopAll, inferState, splitComplete };

@@ -180,11 +180,11 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: path.join(ROOT, "src", "preload.cjs"),
     },
   });
 
-  win.loadFile(path.join(__dirname, "widget.html"));
+  win.loadFile(path.join(ROOT, "src", "widget.html"));
   win.setAlwaysOnTop(true, "floating");
   // wscript launches the process with SW_HIDE, which defaults the window hidden.
   // Force visible once the renderer paints; did-finish-load actually beats
