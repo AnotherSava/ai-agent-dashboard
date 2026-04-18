@@ -3,7 +3,7 @@ layout: default
 title: Claude Code
 ---
 
-[Home](..) | [Claude Code](claude-code) | [Other Tools](other-tools) | [Development](development)
+[Home](..) | [Claude Code](claude-code) | [Other Tools](other-tools) | [Development](development) | [Data Flow](data-flow)
 
 ---
 
@@ -11,7 +11,7 @@ The widget tracks [Claude Code](https://claude.com/product/claude-code) sessions
 
 ### How sessions appear
 
-A fresh Claude Code session shows as `idle` the moment you launch it. The moment you submit a prompt it flips to `working` with the first 60 characters of your prompt as the row's label. When Claude finishes responding, the row marks `done`. When you `/exit`, the row is cleared. If Claude hits a permission prompt mid-response, the row shows `idle` until you answer — then returns to `working` automatically.
+A fresh Claude Code session shows as `idle` the moment you launch it. The moment you submit a prompt it flips to `working` with the first 60 characters of your prompt as the row's label. When Claude finishes responding with a report, the row marks `done`; when Claude finishes by asking you a question, it marks `awaiting` — distinguished by inspecting the transcript's last assistant text (ends with `?` ⇒ `awaiting`). Permission prompts and plan-approval notifications also show `awaiting` with the specific tool / prompt label. When you `/exit`, the row is cleared. The row also shows a colored token count (e.g. `82k`) whenever the watcher has seen an assistant turn, so you can see context growth at a glance.
 
 ![Widget showing a Claude Code session](../screenshots/screenshot.png)
 
@@ -82,8 +82,9 @@ With that, a session in `d:/projects/bga/assistant` shows up as `bga assistant` 
 
 ### Features
 
-- **Five lifecycle hooks**: SessionStart → idle, UserPromptSubmit → working, Notification → idle, Stop → done, SessionEnd → clear.
-- **Transcript watcher**: tails `~/.claude/projects/<project>/<session>.jsonl` and infers state from the last conversational entry (tool_use / tool_result → working; assistant text → done).
+- **Five lifecycle hooks**: SessionStart → idle, UserPromptSubmit → working, Notification → awaiting (with tool / message label), Stop → done or awaiting (classified from the transcript's last assistant text), SessionEnd → clear.
+- **Transcript watcher**: tails `~/.claude/projects/<project>/<session>.jsonl`. Infers state from the last conversational entry (tool_use / tool_result → working; assistant text → done) and extracts the current model + input-side token count from the most recent assistant `usage` block to drive the context indicator.
+- **Context-usage indicator**: colored token count on the right of each row. Window sizes and threshold colors are configurable in `config/config.json` (`context_window_tokens`, `context_bar_thresholds`) — defaults assume the 1M-context variants of Opus 4.7 / Sonnet 4.6.
 - **Prompt-as-label**: first line of your prompt (≤60 chars) displays under the session name while `working`.
 - **Readable session IDs**: cwd basename by default, subpath-under-`projects_root` if configured.
 - **Optional MCP escape hatch**: for mid-response state changes (`thinking`, `error`) that hooks don't observe.

@@ -3,7 +3,7 @@ layout: default
 title: Other Tools
 ---
 
-[Home](..) | [Claude Code](claude-code) | [Other Tools](other-tools) | [Development](development)
+[Home](..) | [Claude Code](claude-code) | [Other Tools](other-tools) | [Development](development) | [Data Flow](data-flow)
 
 ---
 
@@ -58,7 +58,7 @@ status("my-task", "done")
 |-------|------|----------|-------------|
 | `action` | `"set"` or `"clear"` | yes | Set or remove a session |
 | `id` | string | yes | Unique session identifier |
-| `status` | enum | for `set` | `idle`, `working`, `thinking`, `done`, `error` |
+| `status` | enum | for `set` | `idle`, `working`, `thinking`, `awaiting`, `done`, `error` |
 | `label` | string | no | Short description of current activity |
 | `source` | string | no | Tool name — `claude`, `codex`, `openwebui`, or anything else |
 | `updated` | number | no | Unix timestamp in milliseconds |

@@ -2,7 +2,7 @@
 
 *A real-time desktop widget that shows what your AI coding agents are doing.*
 
-Anything that can POST JSON to localhost can report its status. Each session appears as a row in a compact always-on-top window, with a color-coded icon identifying the source tool and a live badge that transitions between idle / working / thinking / done / error.
+Anything that can POST JSON to localhost can report its status. Each session appears as a row in a compact always-on-top window, with a color-coded icon identifying the source tool and a live badge that transitions between idle / working / thinking / awaiting / done / error.
 
 ![AI Agent Dashboard](docs/screenshots/screenshot.png)
 
@@ -25,3 +25,4 @@ See full project documentation at **[anothersava.github.io/ai-agent-dashboard](h
   - [Claude Code](https://anothersava.github.io/ai-agent-dashboard/pages/claude-code)
   - [Other Tools](https://anothersava.github.io/ai-agent-dashboard/pages/other-tools)
 - [Developer guide](https://anothersava.github.io/ai-agent-dashboard/pages/development)
+  - [Data flow reference](https://anothersava.github.io/ai-agent-dashboard/pages/data-flow)
