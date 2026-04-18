@@ -29,29 +29,34 @@ def draw_traffic_light(size: int) -> Image.Image:
     img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    pad = max(1, s // 10)
-    corner = max(2, s // 8)
+    # Taller-than-wide rectangle — matches real traffic light silhouette and
+    # fills more vertical space in the tray (other toolbar icons tend to fill
+    # nearly the full height).
+    pad_x = max(1, s // 8)
+    pad_y = max(1, s // 48)
+    corner = max(2, s // 12)
     d.rounded_rectangle(
-        [pad, pad, s - 1 - pad, s - 1 - pad],
+        [pad_x, pad_y, s - 1 - pad_x, s - 1 - pad_y],
         radius=corner,
         fill=HOUSING_FILL,
         outline=HOUSING_STROKE,
         width=max(2, s // 40),
     )
 
-    housing_top = pad
-    housing_bot = s - 1 - pad
+    housing_top = pad_y
+    housing_bot = s - 1 - pad_y
     housing_h = housing_bot - housing_top
-    # 3 circles + 4 gaps (top, between x2, bottom). Circle diameter = housing_h / 4.5.
-    diam = housing_h / 4.5
+    # 3 circles + 4 gaps. Smaller diam/larger gaps keep the top and bottom
+    # lights from visually blending into the housing's white border.
+    diam = housing_h / 5.2
     gap = (housing_h - 3 * diam) / 4
     cx = s / 2
 
     for i, color in enumerate(COLORS):
         cy = housing_top + gap + diam / 2 + i * (diam + gap)
         r = diam / 2
-        # Soft glow: a slightly larger, dimmer circle underneath.
-        glow_r = r * 1.18
+        # Tight glow so the rim doesn't reach the border.
+        glow_r = r * 1.08
         glow = tuple(min(255, int(c * 0.45)) for c in color) + (180,)
         d.ellipse([cx - glow_r, cy - glow_r, cx + glow_r, cy + glow_r], fill=glow)
         d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=color + (255,))
