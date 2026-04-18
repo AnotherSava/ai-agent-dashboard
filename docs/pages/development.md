@@ -1,0 +1,111 @@
+---
+layout: default
+title: Development
+---
+
+[Home](..) | [Claude Code](claude-code) | [Other Tools](other-tools) | [Development](development)
+
+---
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+ (tested on 24)
+- Python 3 (for the Claude Code hook and the Python test suite)
+- Windows 10+, macOS, or Linux
+
+### Install
+
+```bash
+git clone https://github.com/AnotherSava/ai-agent-dashboard.git
+cd ai-agent-dashboard
+npm install
+cp config/config.example.json config/config.json   # optional
+```
+
+### Run from source
+
+```bash
+npm start
+```
+
+Launches the Electron widget. It binds `127.0.0.1:9077` and opens a frameless always-on-top window in the bottom-right corner.
+
+### Build a portable exe
+
+```bash
+npm run build
+```
+
+Output: `dist/AI-Agent-Dashboard.exe`, single-file Windows portable (~90 MB). First build downloads Electron + NSIS + winCodeSign (~150 MB total) into the electron-builder cache; subsequent builds are ~10 seconds.
+
+## Commands
+
+- `npm start` — launch the Electron widget (`src/widget.cjs`). Starts the BrowserWindow and the HTTP/SSE hub on `127.0.0.1:9077`.
+- `npm run mcp` — run the MCP stdio server (`src/server.js`) standalone. Usually invoked by Claude Code via `mcpServers` config, not manually.
+- `npm run build` — produce the portable Windows exe via electron-builder.
+- `npm test` — both test suites. `npm run test:py` / `npm run test:js` run them individually.
+
+There is no linter configured.
+
+## Architecture
+
+Two independent processes communicate over localhost HTTP on port 9077. The port is hardcoded — changing it requires editing `src/widget.cjs`, `src/server.js`, `src/widget.html`, and every integration script.
+
+**Electron widget** (`src/widget.cjs`) is the HTTP hub. It owns the in-memory chat Map, accepts POSTs to `/api/status`, streams Server-Sent Events on `/events`, renders `src/widget.html` in a frameless always-on-top BrowserWindow, and manages a system tray icon. It also embeds the log watcher (`src/log-watcher.cjs`) that tails Claude Code transcript JSONL files to refine state between hook events.
+
+**MCP stdio server** (`src/server.js`) is spawned per Claude Code session when registered in the user's MCP config. It exposes `set_status` and `clear_status` tools and forwards both as HTTP POSTs to the widget. Secondary to the hook-based flow — hooks cover the routine lifecycle, MCP is the escape hatch for mid-response state changes like `thinking` and `error` that hooks don't observe.
+
+State is in-memory only. Widget restart loses all rows. The Claude Code hook re-populates on the next session event; other integrations repopulate on their next POST.
+
+## Project structure
+
+```
+src/
+  widget.cjs           Electron main + HTTP/SSE hub + tray/window management
+  widget.html          Renderer — DOM-built chat list, settings tab, SSE client
+  preload.cjs          IPC bridge: minimize / close buttons from renderer → main
+  log-watcher.cjs      Tails Claude Code transcript JSONL, infers state from last conversational entry
+  server.js            MCP stdio server — set_status / clear_status forward to widget HTTP
+integrations/
+  claude_hook.py       Primary integration: Claude Code hook, POSTs to /api/status
+  codex_hook.sh        Bash wrapper around the `codex` CLI
+  openwebui_function.py  OpenWebUI Filter function (unverified example)
+  status_client.py     30-line stdlib Python helper for ad-hoc scripts
+assets/
+  ai-agent-dashboard.ico   Electron app icon + tray icon
+config/
+  config.example.json  Committed template
+  config.json          Git-ignored, user-local overrides
+tests/
+  test_claude_hook.py   Python unittest (build_body, derive_chat_id, load_config)
+  log-watcher.test.cjs  node:test (inferState, splitComplete)
+launch.vbs             Windows launcher that starts the widget without a console window
+```
+
+### Key conventions
+
+- Project is `"type": "module"`, but the Electron main process and preload are `.cjs` because Electron's main loader expects CommonJS.
+- `build.files` in `package.json` is an **explicit allowlist** for electron-builder — any new runtime asset must be added there or it won't ship in the packaged exe.
+- Both `src/widget.cjs` and `integrations/claude_hook.py` resolve `config/config.json` relative to their own file location, not the current working directory.
+- Logs: the MCP server writes `mcp.log` at the repo root; the widget writes `widget.log`. Both JSON-lines. Both git-ignored by `*.log`.
+- The MCP server posts to the widget with a 2-second timeout and swallows errors toward the MCP client — a missing widget is expected and never surfaced as a tool error. All outcomes still log to `mcp.log`.
+
+### Status enum
+
+`idle | working | thinking | done | error` — defined in `src/server.js` (zod schema), referenced by color/badge CSS classes in `src/widget.html`, and documented on the [Other Tools](other-tools) page. Adding a new status requires touching all three.
+
+### Source identity convention
+
+The renderer's `SOURCE_LABELS` map (`claude` → C, `codex` → X, `openwebui` → W, else `?`) drives icon color and letter. When adding a new first-class integration, update the `SOURCE_LABELS` map, the `.source-icon.<name>` CSS rule in `src/widget.html`, and the source table on the [Other Tools](other-tools) page. Unknown sources render with the first uppercase letter against a gray badge.
+
+## Testing
+
+```bash
+npm test
+```
+
+Python suite (`tests/test_claude_hook.py`) covers `build_body`, `derive_chat_id`, and `load_config` in the Claude Code hook — 27 tests exercising the payload construction and config loading.
+
+Node suite (`tests/log-watcher.test.cjs`) covers the pure helpers `inferState` and `splitComplete` in `src/log-watcher.cjs` — 14 tests for transcript parsing, partial-line buffering, and edge cases. The `fs.watch` machinery is not unit-tested; changes there need manual verification.
