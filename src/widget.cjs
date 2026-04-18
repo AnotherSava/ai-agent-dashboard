@@ -1,6 +1,30 @@
 const { app, BrowserWindow, screen, Tray, Menu, nativeImage, ipcMain, shell } = require("electron");
 const path = require("path");
 const http = require("http");
+const fs = require("fs");
+const logWatcher = require("./log-watcher.cjs");
+
+const ROOT = path.join(__dirname, "..");
+const WIDGET_LOG_PATH = path.join(ROOT, "widget.log");
+const CONFIG_PATH = path.join(ROOT, "config", "config.json");
+function logEvent(event, data = {}) {
+  try {
+    fs.appendFileSync(WIDGET_LOG_PATH, JSON.stringify({ ts: new Date().toISOString(), event, ...data }) + "\n");
+  } catch {}
+}
+
+function loadConfig() {
+  const defaults = { show_source_icon: true };
+  try {
+    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+    const loaded = JSON.parse(raw);
+    return loaded && typeof loaded === "object" ? { ...defaults, ...loaded } : defaults;
+  } catch {
+    return defaults;
+  }
+}
+
+ipcMain.on("get-config", (event) => { event.returnValue = loadConfig(); });
 
 let win;
 let tray;
@@ -15,6 +39,40 @@ function broadcast() {
   for (const res of sseClients) {
     res.write(`data: ${data}\n\n`);
   }
+}
+
+const VALID_STATUSES = new Set(["idle", "working", "thinking", "done", "error"]);
+
+function onWatcherStateChange(chatId, newStatus) {
+  const existing = chats.get(chatId);
+  if (!existing) return;
+  if (existing.status === newStatus) return;
+  chats.set(chatId, { ...existing, status: newStatus, updated: Date.now() });
+  broadcast();
+}
+
+function onWatcherError(info) {
+  logEvent("watcher_error", info);
+  // Claude Code creates the transcript JSONL lazily — a SessionStart hook can
+  // fire seconds before the file exists. The next hook event retries cleanly.
+  // Still logged above, just don't surface as an error row.
+  if (info.phase === "initial-stat" && info.code === "ENOENT") return;
+  chats.set("watcher-error", {
+    id: "watcher-error",
+    status: "error",
+    label: `${info.phase}: ${info.error}`.slice(0, 60),
+    source: "watcher",
+    updated: Date.now(),
+  });
+  broadcast();
+}
+
+function safeOpenUrl(url) {
+  if (typeof url !== "string") return;
+  try {
+    const u = new URL(url);
+    if (u.protocol === "https:" || u.protocol === "http:") shell.openExternal(url);
+  } catch {}
 }
 
 // HTTP server on port 9077 — receives POSTs from MCP, serves SSE to widget renderer
@@ -33,18 +91,41 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
-  // POST from MCP server
+  // POST from MCP server / integrations / renderer
   if (req.url === "/api/status" && req.method === "POST") {
+    // CSRF guard: reject browser requests from http/https origins.
+    // No Origin header = non-browser client (curl, Node, Python). Renderer loads via file:// → Origin: null.
+    const origin = req.headers.origin;
+    if (origin && origin !== "null") {
+      res.writeHead(403);
+      res.end("forbidden origin");
+      return;
+    }
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       try {
         const msg = JSON.parse(body);
         if (msg.action === "set") {
-          chats.set(msg.id, { id: msg.id, status: msg.status, label: msg.label, source: msg.source || "unknown", updated: msg.updated });
+          if (typeof msg.id !== "string" || !VALID_STATUSES.has(msg.status)) {
+            res.writeHead(400);
+            res.end("bad input");
+            return;
+          }
+          const existing = chats.get(msg.id);
+          const label = typeof msg.label === "string" ? msg.label : (existing ? existing.label : "");
+          const source = typeof msg.source === "string" ? msg.source : (existing ? existing.source : "unknown");
+          const updated = typeof msg.updated === "number" ? msg.updated : Date.now();
+          const transcript_path = typeof msg.transcript_path === "string" ? msg.transcript_path : (existing ? existing.transcript_path : undefined);
+          chats.set(msg.id, { id: msg.id, status: msg.status, label, source, updated, transcript_path });
+          if (transcript_path) logWatcher.startWatching(msg.id, transcript_path, onWatcherStateChange, onWatcherError);
           broadcast();
         } else if (msg.action === "clear") {
-          chats.delete(msg.id);
+          if (typeof msg.id === "string") {
+            const existing = chats.get(msg.id);
+            if (existing && existing.transcript_path) logWatcher.stopWatching(existing.transcript_path);
+            chats.delete(msg.id);
+          }
           broadcast();
         } else if (msg.action === "config") {
           if (msg.key === "alwaysOnTop" && win) {
@@ -52,7 +133,7 @@ const httpServer = http.createServer((req, res) => {
           } else if (msg.key === "position") {
             reposition(msg.value);
           } else if (msg.key === "openUrl") {
-            shell.openExternal(msg.value);
+            safeOpenUrl(msg.value);
           }
         }
         res.writeHead(200);
@@ -90,7 +171,7 @@ function createWindow() {
     transparent: false,
     alwaysOnTop: true,
     skipTaskbar: false,
-    icon: path.join(__dirname, "claude-status.ico"),
+    icon: path.join(ROOT, "assets", "ai-agent-dashboard.ico"),
     resizable: true,
     minimizable: false,
     maximizable: false,
@@ -118,9 +199,9 @@ function getPosition(sw, sh, winW, winH, margin) {
 }
 
 function createTray() {
-  const icon = nativeImage.createFromPath(path.join(__dirname, "claude-status.ico"));
+  const icon = nativeImage.createFromPath(path.join(ROOT, "assets", "ai-agent-dashboard.ico"));
   tray = new Tray(icon);
-  tray.setToolTip("AI Status Dashboard");
+  tray.setToolTip("AI Agent Dashboard");
 
   tray.on("click", () => {
     if (win) {
@@ -168,3 +249,4 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", (e) => { e.preventDefault(); });
+app.on("before-quit", () => logWatcher.stopAll());

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Codex status hook — reports to AI Status Dashboard
+# Codex status hook — reports to AI Agent Dashboard
 # Add to your shell profile or use as a wrapper: ./codex_hook.sh "my task"
 #
 # Usage:

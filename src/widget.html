@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AI Status</title>
+<title>AI Agents</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -341,7 +341,7 @@
 <body>
 <div class="container">
   <div class="titlebar">
-    <h1 id="titleText">AI Status</h1>
+    <h1 id="titleText">AI Agents</h1>
     <span class="count" id="count"></span>
     <div class="controls">
       <button class="btn-settings" id="settingsBtn" title="Settings">&#9881;</button>
@@ -394,7 +394,7 @@
       <div class="settings-section">
         <h2>About</h2>
         <div class="about-logo">
-          <div class="logo-text">AI STATUS</div>
+          <div class="logo-text">AI AGENTS</div>
         </div>
         <div class="about-version">v1.1.0</div>
         <div class="about-desc">
@@ -407,8 +407,8 @@
           <div class="source-icon openwebui" title="OpenWebUI">W</div>
           <div class="source-icon unknown" title="Any tool">+</div>
         </div>
-        <a class="about-link" id="githubLink">github.com/Idevelopusefulstuff/claude-status-dashboard</a>
-        <div class="about-author">Built by IDevUsefulStuff</div>
+        <a class="about-link" id="githubLink">github.com/AnotherSava/ai-agent-dashboard</a>
+        <div class="about-author">Built by AnotherSava</div>
       </div>
 
     </div>
@@ -432,6 +432,7 @@ let autoDismissTimers = {};
 let showingSettings = false;
 
 const SOURCE_LABELS = { claude: 'C', codex: 'X', openwebui: 'W', unknown: '?' };
+const SHOW_SOURCE_ICON = window.widget?.config?.show_source_icon !== false;
 
 // Window controls
 document.getElementById('minBtn').addEventListener('click', () => window.widget.minimize());
@@ -442,7 +443,7 @@ settingsBtn.addEventListener('click', () => {
   showingSettings = !showingSettings;
   statusTab.classList.toggle('active', !showingSettings);
   settingsTab.classList.toggle('active', showingSettings);
-  titleText.textContent = showingSettings ? 'Settings' : 'AI Status';
+  titleText.textContent = showingSettings ? 'Settings' : 'AI Agents';
   settingsBtn.style.opacity = showingSettings ? '1' : '';
 });
 
@@ -492,7 +493,7 @@ document.getElementById('githubLink').addEventListener('click', () => {
   fetch('http://127.0.0.1:9077/api/status', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'config', key: 'openUrl', value: 'https://github.com/Idevelopusefulstuff/claude-status-dashboard' })
+    body: JSON.stringify({ action: 'config', key: 'openUrl', value: 'https://github.com/AnotherSava/ai-agent-dashboard' })
   }).catch(() => {});
 });
 
@@ -509,16 +510,63 @@ function notify(title, body) {
   new Notification(title, { body, silent: true });
 }
 
-function sourceIcon(src) {
-  const s = (src || 'unknown').toLowerCase();
-  const cls = SOURCE_LABELS[s] ? s : 'unknown';
-  const letter = SOURCE_LABELS[s] || s.charAt(0).toUpperCase();
-  return `<div class="source-icon ${cls}" title="${esc(src || 'unknown')}">${letter}</div>`;
+function makeChat(c, isNew) {
+  const s = (c.source || 'unknown').toLowerCase();
+  const srcCls = SOURCE_LABELS[s] ? s : 'unknown';
+  const srcLetter = SOURCE_LABELS[s] || s.charAt(0).toUpperCase();
+
+  const el = document.createElement('div');
+  el.className = 'chat ' + c.status + (isNew ? ' chat-enter' : '');
+
+  if (SHOW_SOURCE_ICON) {
+    const icon = document.createElement('div');
+    icon.className = 'source-icon ' + srcCls;
+    icon.title = c.source || 'unknown';
+    icon.textContent = srcLetter;
+    el.appendChild(icon);
+  }
+
+  const dot = document.createElement('div');
+  dot.className = 'dot';
+  el.appendChild(dot);
+
+  const info = document.createElement('div');
+  info.className = 'chat-info';
+  const name = document.createElement('div');
+  name.className = 'chat-name';
+  name.textContent = c.id;
+  info.appendChild(name);
+  if (c.label) {
+    const lbl = document.createElement('div');
+    lbl.className = 'chat-label';
+    lbl.textContent = c.label;
+    info.appendChild(lbl);
+  }
+  el.appendChild(info);
+
+  const badge = document.createElement('span');
+  badge.className = 'badge';
+  badge.textContent = c.status;
+  el.appendChild(badge);
+
+  const close = document.createElement('button');
+  close.className = 'chat-close';
+  close.title = 'Dismiss';
+  close.textContent = '\u00D7';
+  close.addEventListener('click', () => dismissChat(c.id));
+  el.appendChild(close);
+
+  return el;
 }
 
 function render(chats) {
+  while (root.firstChild) root.removeChild(root.firstChild);
+
   if (!chats.length) {
-    root.innerHTML = '<div class="no-chats">Waiting for sessions...</div>';
+    const empty = document.createElement('div');
+    empty.className = 'no-chats';
+    empty.textContent = 'Waiting for sessions...';
+    root.appendChild(empty);
     countEl.textContent = '';
     prev = {};
     return;
@@ -536,7 +584,6 @@ function render(chats) {
       if (c.status === 'done') notify(src + ': Done', c.id);
       if (c.status === 'error') notify(src + ': Error', c.id);
     }
-    // Auto-dismiss done sessions after 30s
     if (autoDismiss && c.status === 'done' && !autoDismissTimers[c.id]) {
       autoDismissTimers[c.id] = setTimeout(() => {
         dismissChat(c.id);
@@ -549,28 +596,12 @@ function render(chats) {
     }
   });
 
-  root.innerHTML = chats.map(c => {
-    const isNew = !prev[c.id];
-    return `<div class="chat ${c.status} ${isNew ? 'chat-enter' : ''}">
-      ${sourceIcon(c.source)}
-      <div class="dot"></div>
-      <div class="chat-info">
-        <div class="chat-name">${esc(c.id)}</div>
-        ${c.label ? `<div class="chat-label">${esc(c.label)}</div>` : ''}
-      </div>
-      <span class="badge">${c.status}</span>
-      <button class="chat-close" onclick="dismissChat('${esc(c.id)}')" title="Dismiss">&times;</button>
-    </div>`;
-  }).join('');
-
-  prev = {};
-  chats.forEach(c => prev[c.id] = c.status);
-}
-
-function esc(s) {
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+  const newPrev = {};
+  chats.forEach(c => {
+    root.appendChild(makeChat(c, !prev[c.id]));
+    newPrev[c.id] = c.status;
+  });
+  prev = newPrev;
 }
 
 function dismissChat(id) {

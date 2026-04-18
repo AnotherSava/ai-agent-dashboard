@@ -1,4 +1,6 @@
 node_modules/
+dist/
 *.log
-publish_config.json
-.medium_session.json
+__pycache__/
+.claude/settings.local.json
+config/config.json

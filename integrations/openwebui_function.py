@@ -1,8 +1,8 @@
 """
-title: AI Status Dashboard
-author: IDevUsefulStuff
+title: AI Agent Dashboard
+author: AnotherSava
 version: 1.0.0
-description: Reports model activity to the AI Status Dashboard widget. Drop this into OpenWebUI as a Filter function.
+description: Reports model activity to the AI Agent Dashboard widget. Drop this into OpenWebUI as a Filter function.
 """
 
 import json

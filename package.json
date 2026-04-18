@@ -1,31 +1,35 @@
 {
-  "name": "claude-status-dashboard",
+  "name": "ai-agent-dashboard",
   "version": "1.1.0",
-  "description": "Real-time status widget for AI coding agents — track Claude, Codex, OpenWebUI and more via a desktop overlay and system tray.",
+  "description": "Real-time status widget for AI coding agents — tracks Claude Code, Codex, and anything that can POST JSON.",
   "type": "module",
-  "main": "widget.cjs",
+  "main": "src/widget.cjs",
   "scripts": {
-    "start": "electron widget.cjs",
-    "mcp": "node server.js",
-    "build": "electron-builder --win portable"
+    "start": "electron src/widget.cjs",
+    "mcp": "node src/server.js",
+    "build": "electron-builder --win portable",
+    "test:py": "python -m unittest discover -s tests",
+    "test:js": "node --test tests/*.test.cjs",
+    "test": "npm run test:py && npm run test:js"
   },
   "build": {
-    "appId": "com.idevusefulstuff.ai-status",
-    "productName": "AI Status",
+    "appId": "com.anothersava.ai-agent-dashboard",
+    "productName": "AI Agent Dashboard",
     "win": {
       "target": "portable",
-      "icon": "claude-status.ico"
+      "icon": "assets/ai-agent-dashboard.ico"
     },
     "portable": {
-      "artifactName": "AI-Status.exe"
+      "artifactName": "AI-Agent-Dashboard.exe"
     },
     "files": [
-      "widget.cjs",
-      "widget.html",
-      "dashboard.html",
-      "preload.cjs",
-      "server.js",
-      "claude-status.ico"
+      "src/widget.cjs",
+      "src/widget.html",
+      "src/preload.cjs",
+      "src/log-watcher.cjs",
+      "src/server.js",
+      "assets/ai-agent-dashboard.ico",
+      "config/config.example.json"
     ]
   },
   "keywords": [
@@ -37,17 +41,17 @@
     "electron",
     "widget"
   ],
-  "author": "IDevUsefulStuff",
+  "author": "AnotherSava",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Idevelopusefulstuff/claude-status-dashboard.git"
+    "url": "git+https://github.com/AnotherSava/ai-agent-dashboard.git"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "electron": "^41.1.1",
-    "electron-packager": "^17.1.2"
+    "electron-builder": "^26.8.1"
   }
 }
