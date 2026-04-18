@@ -176,6 +176,7 @@ function createWindow() {
     minimizable: false,
     maximizable: false,
     focusable: true,
+    show: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -185,6 +186,12 @@ function createWindow() {
 
   win.loadFile(path.join(__dirname, "widget.html"));
   win.setAlwaysOnTop(true, "floating");
+  // wscript launches the process with SW_HIDE, which defaults the window hidden.
+  // Force visible once the renderer paints; did-finish-load actually beats
+  // ready-to-show in that launch context, so both listeners cover both cases.
+  const revealWhenReady = () => { if (win && !win.isVisible()) { win.show(); win.moveTop(); } };
+  win.once("ready-to-show", revealWhenReady);
+  win.webContents.once("did-finish-load", revealWhenReady);
   win.on("closed", () => { win = null; });
 }
 
