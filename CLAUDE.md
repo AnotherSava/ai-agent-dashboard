@@ -36,7 +36,7 @@ The Electron main process is also the HTTP hub. It:
 - Owns the in-memory `chats` Map (keyed by `id`) and broadcasts the full list to all SSE clients on every mutation. There is no persistence — state is lost on restart.
 - Renders `src/widget.html` in a frameless always-on-top BrowserWindow and creates a system tray icon. `src/preload.cjs` bridges `minimize`/`close` IPC from renderer to main.
 - The `config` action is how the renderer's settings UI reaches back into the main process (e.g. toggling `alwaysOnTop`, repositioning the window, opening external URLs) — this is the reverse of the normal data flow and worth understanding before adding new settings.
-- `src/log-watcher.cjs` tails Claude Code transcript JSONL files when the hook forwards `transcript_path`. It fills in state between hook events (notably: resumed-after-notification, long thinking, intermediate tool steps). Hooks remain the authoritative transitions; the watcher is a secondary signal that only changes state when the file actually shows new activity. Parse failures surface as a `status: "error"` row with `id: "watcher-error"` / `source: "watcher"` and also log to `widget.log` — never silent.
+- `src/log-watcher.cjs` tails Claude Code transcript JSONL files when the hook forwards `transcript_path`. It fills in state between hook events (notably: resumed-after-notification, long thinking, intermediate tool steps) **and** extracts the current model + input-side token count from the most recent main-session assistant `usage` block — this drives the per-row context indicator. Sidechain entries (sub-agents) and synthetic `<synthetic>` entries are skipped so they don't override the main session's model. Hooks remain the authoritative transitions; the watcher is a secondary signal that only changes fields it actually observes. Parse failures surface as a `status: "error"` row with `id: "watcher-error"` / `source: "watcher"` and also log to `widget.log` — never silent.
 
 ### 2. MCP server (`src/server.js`)
 
@@ -56,7 +56,7 @@ The renderer's `SOURCE_LABELS` map (`claude` → C, `codex` → X, `openwebui` �
 
 ### Status enum
 
-`idle | working | thinking | done | error` — defined in `src/server.js` (zod schema), referenced by color/badge CSS classes in `src/widget.html`, and documented in the README. Adding a new status requires touching all three.
+`idle | working | thinking | awaiting | done | error` — defined in `src/server.js` (zod schema), validated in `src/widget.cjs` (`VALID_STATUSES`), referenced by color/badge CSS classes in `src/widget.html`, and documented in the README. Adding a new status requires touching all four. `awaiting` specifically means "Claude is blocked on user input" (asked a question, hit a permission prompt, waiting on plan approval) and is produced by the `claude_hook.py` classifier using the `?`-heuristic on the transcript's last assistant text.
 
 ## Conventions specific to this repo
 

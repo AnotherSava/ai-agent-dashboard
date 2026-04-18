@@ -1,5 +1,16 @@
 {
   "widget_url": "http://127.0.0.1:9077/api/status",
   "projects_root": "d:/projects",
-  "show_source_icon": true
+  "show_source_icon": true,
+  "context_window_tokens": {
+    "claude-opus-4-7":    1000000,
+    "claude-sonnet-4-6":  1000000,
+    "claude-haiku-4-5":    200000,
+    "default":             200000
+  },
+  "context_bar_thresholds": {
+    "0":  "#3fb950",
+    "60": "#f0883e",
+    "85": "#f85149"
+  }
 }

@@ -12,12 +12,23 @@ const fs = require("fs");
 // transcriptPath -> { chatId, watcher, position, leftover, pending, dirty }
 const watchers = new Map();
 
-// Walk the JSONL lines backwards; return state inferred from the last
-// conversational entry (user/assistant with a valid content array). Entries
-// with unknown `type` (attachment, file-history-snapshot, system,
+// Walk the JSONL lines backwards; return { state, model, inputTokens } inferred
+// from the conversational entries (user/assistant with a valid content array).
+// Entries with unknown `type` (attachment, file-history-snapshot, system,
 // permission-mode, last-prompt, queue-operation) are skipped so we don't
-// confuse metadata with real activity. Returns null if no decision is possible.
+// confuse metadata with real activity.
+//
+// `state` comes from the most recent conversational entry (closest-to-newest wins).
+// `model` and `inputTokens` come from the most recent assistant entry with a
+// `usage` block — the input-side token count is what the model actually saw
+// on the last turn (what matters for deciding when to /compact). Missing values
+// are left as null so callers can preserve prior state for that field.
+// Returns null only if nothing useful was found.
 function inferState(jsonLines) {
+  let state = null;
+  let model = null;
+  let inputTokens = null;
+
   for (let i = jsonLines.length - 1; i >= 0; i--) {
     let obj;
     try { obj = JSON.parse(jsonLines[i]); } catch { continue; }
@@ -26,14 +37,41 @@ function inferState(jsonLines) {
     const msg = obj.message;
     const content = msg && Array.isArray(msg.content) ? msg.content : null;
     if (!content) continue;
-    const hasToolUse = content.some((b) => b && b.type === "tool_use");
-    const hasToolResult = content.some((b) => b && b.type === "tool_result");
-    const hasText = content.some((b) => b && b.type === "text" && typeof b.text === "string" && b.text.trim());
-    if (hasToolUse || hasToolResult) return "working";
-    if (type === "user" && hasText) return "working";
-    if (type === "assistant" && hasText) return "done";
+
+    // Only capture model/usage from MAIN-session assistant entries produced
+    // by a real Claude model. Skipped:
+    //   • `isSidechain: true` — Task/Explore sub-agents with their own context windows.
+    //   • `model: "<synthetic>"` (and anything that isn't "claude-*") — Claude Code
+    //     inserts synthetic error-message entries that otherwise clobber the
+    //     dashboard's window-size lookup → a red flash → a snap back to the
+    //     correct color on the next real response.
+    if (type === "assistant" && !obj.isSidechain) {
+      if (model === null && typeof msg.model === "string" && msg.model.startsWith("claude-")) {
+        model = msg.model;
+      }
+      if (inputTokens === null && msg.usage && typeof msg.usage === "object") {
+        const u = msg.usage;
+        const input = typeof u.input_tokens === "number" ? u.input_tokens : 0;
+        const cc = typeof u.cache_creation_input_tokens === "number" ? u.cache_creation_input_tokens : 0;
+        const cr = typeof u.cache_read_input_tokens === "number" ? u.cache_read_input_tokens : 0;
+        if (input || cc || cr) inputTokens = input + cc + cr;
+      }
+    }
+
+    if (state === null) {
+      const hasToolUse = content.some((b) => b && b.type === "tool_use");
+      const hasToolResult = content.some((b) => b && b.type === "tool_result");
+      const hasText = content.some((b) => b && b.type === "text" && typeof b.text === "string" && b.text.trim());
+      if (hasToolUse || hasToolResult) state = "working";
+      else if (type === "user" && hasText) state = "working";
+      else if (type === "assistant" && hasText) state = "done";
+    }
+
+    if (state !== null && model !== null && inputTokens !== null) break;
   }
-  return null;
+
+  if (state === null && model === null && inputTokens === null) return null;
+  return { state, model, inputTokens };
 }
 
 // Given any bytes-of-JSONL that may straddle line boundaries, return the
@@ -78,8 +116,8 @@ function drain(entry, onStateChange, onError) {
       entry.leftover = split.leftover;
       if (split.lines.length) {
         try {
-          const state = inferState(split.lines);
-          if (state) onStateChange(entry.chatId, state);
+          const update = inferState(split.lines);
+          if (update) onStateChange(entry.chatId, update);
         } catch (e) {
           onError({ chatId: entry.chatId, transcriptPath: entry.transcriptPath, phase: "infer", error: e.message });
         }
@@ -95,10 +133,13 @@ function startWatching(chatId, transcriptPath, onStateChange, onError) {
   const existing = watchers.get(transcriptPath);
   if (existing) { existing.chatId = chatId; return; }
 
+  // Leave position at 0 so the initial drain reads any pre-existing content —
+  // needed on widget restart or session resume, where the transcript already
+  // has usage/model data we want to surface immediately.
   const entry = { chatId, transcriptPath, position: 0, leftover: "", watcher: null, pending: false, dirty: false };
 
   try {
-    entry.position = fs.statSync(transcriptPath).size;
+    fs.statSync(transcriptPath);
   } catch (err) {
     onError({ chatId, transcriptPath, phase: "initial-stat", error: err.message, code: err.code });
     return;
@@ -117,6 +158,7 @@ function startWatching(chatId, transcriptPath, onStateChange, onError) {
   }
 
   watchers.set(transcriptPath, entry);
+  drain(entry, onStateChange, onError);
 }
 
 function stopWatching(transcriptPath) {

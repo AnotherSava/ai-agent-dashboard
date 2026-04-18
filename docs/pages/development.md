@@ -3,7 +3,7 @@ layout: default
 title: Development
 ---
 
-[Home](..) | [Claude Code](claude-code) | [Other Tools](other-tools) | [Development](development)
+[Home](..) | [Claude Code](claude-code) | [Other Tools](other-tools) | [Development](development) | [Data Flow](data-flow)
 
 ---
 
@@ -94,7 +94,7 @@ launch.vbs             Windows launcher that starts the widget without a console
 
 ### Status enum
 
-`idle | working | thinking | done | error` — defined in `src/server.js` (zod schema), referenced by color/badge CSS classes in `src/widget.html`, and documented on the [Other Tools](other-tools) page. Adding a new status requires touching all three.
+`idle | working | thinking | awaiting | done | error` — defined in `src/server.js` (zod schema), validated in `src/widget.cjs` (`VALID_STATUSES`), referenced by color/badge CSS classes in `src/widget.html`, and documented on the [Other Tools](other-tools) page. Adding a new status requires touching all four.
 
 ### Source identity convention
 
@@ -106,6 +106,6 @@ The renderer's `SOURCE_LABELS` map (`claude` → C, `codex` → X, `openwebui` �
 npm test
 ```
 
-Python suite (`tests/test_claude_hook.py`) covers `build_body`, `derive_chat_id`, and `load_config` in the Claude Code hook — 27 tests exercising the payload construction and config loading.
+Python suite (`tests/test_claude_hook.py`) covers `build_body`, `derive_chat_id`, `load_config`, the `classify` dispatcher, and the `last_assistant_ends_with_question` transcript heuristic in the Claude Code hook — 40 tests exercising payload construction, config loading, and Notification / Stop classification.
 
-Node suite (`tests/log-watcher.test.cjs`) covers the pure helpers `inferState` and `splitComplete` in `src/log-watcher.cjs` — 14 tests for transcript parsing, partial-line buffering, and edge cases. The `fs.watch` machinery is not unit-tested; changes there need manual verification.
+Node suite (`tests/log-watcher.test.cjs`) covers the pure helpers `inferState` and `splitComplete` in `src/log-watcher.cjs` — 20 tests for transcript parsing, partial-line buffering, model/token extraction, and sidechain/synthetic-entry filtering. The `fs.watch` machinery is not unit-tested; changes there need manual verification.

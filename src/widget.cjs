@@ -14,7 +14,20 @@ function logEvent(event, data = {}) {
 }
 
 function loadConfig() {
-  const defaults = { show_source_icon: true };
+  const defaults = {
+    show_source_icon: true,
+    context_window_tokens: {
+      "claude-opus-4-7":    1000000,
+      "claude-sonnet-4-6":  1000000,
+      "claude-haiku-4-5":    200000,
+      "default":             200000,
+    },
+    context_bar_thresholds: {
+      "0":  "#3fb950",
+      "60": "#f0883e",
+      "85": "#f85149",
+    },
+  };
   try {
     const raw = fs.readFileSync(CONFIG_PATH, "utf8");
     const loaded = JSON.parse(raw);
@@ -41,13 +54,28 @@ function broadcast() {
   }
 }
 
-const VALID_STATUSES = new Set(["idle", "working", "thinking", "done", "error"]);
+const VALID_STATUSES = new Set(["idle", "working", "thinking", "awaiting", "done", "error"]);
 
-function onWatcherStateChange(chatId, newStatus) {
+function onWatcherStateChange(chatId, update) {
   const existing = chats.get(chatId);
   if (!existing) return;
-  if (existing.status === newStatus) return;
-  chats.set(chatId, { ...existing, status: newStatus, updated: Date.now() });
+  const next = { ...existing };
+  let changed = false;
+  if (update.state && existing.status !== update.state) {
+    next.status = update.state;
+    changed = true;
+  }
+  if (update.model && existing.model !== update.model) {
+    next.model = update.model;
+    changed = true;
+  }
+  if (typeof update.inputTokens === "number" && existing.inputTokens !== update.inputTokens) {
+    next.inputTokens = update.inputTokens;
+    changed = true;
+  }
+  if (!changed) return;
+  next.updated = Date.now();
+  chats.set(chatId, next);
   broadcast();
 }
 
@@ -117,7 +145,9 @@ const httpServer = http.createServer((req, res) => {
           const source = typeof msg.source === "string" ? msg.source : (existing ? existing.source : "unknown");
           const updated = typeof msg.updated === "number" ? msg.updated : Date.now();
           const transcript_path = typeof msg.transcript_path === "string" ? msg.transcript_path : (existing ? existing.transcript_path : undefined);
-          chats.set(msg.id, { id: msg.id, status: msg.status, label, source, updated, transcript_path });
+          const model = existing ? existing.model : undefined;
+          const inputTokens = existing ? existing.inputTokens : undefined;
+          chats.set(msg.id, { id: msg.id, status: msg.status, label, source, updated, transcript_path, model, inputTokens });
           if (transcript_path) logWatcher.startWatching(msg.id, transcript_path, onWatcherStateChange, onWatcherError);
           broadcast();
         } else if (msg.action === "clear") {

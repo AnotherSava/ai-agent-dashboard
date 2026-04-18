@@ -56,7 +56,7 @@ mcp.tool(
   "Update the status of the current chat on the live dashboard widget. Call this at the START of every response with status 'working' and at the END with 'done'. Use 'thinking' when planning/researching, 'error' if something fails.",
   {
     chat_id: z.string().describe("Unique chat identifier — use the conversation topic or a short label"),
-    status: z.enum(["idle", "working", "thinking", "done", "error"]).describe("Current status"),
+    status: z.enum(["idle", "working", "thinking", "awaiting", "done", "error"]).describe("Current status"),
     label: z.string().optional().describe("Short description of what you're doing"),
   },
   async ({ chat_id, status, label }) => {

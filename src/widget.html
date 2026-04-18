@@ -140,6 +140,7 @@
   }
   .chat.working::before { background: #f0883e; }
   .chat.thinking::before { background: #a371f7; }
+  .chat.awaiting::before { background: #58a6ff; }
   .chat.done::before { background: #3fb950; }
   .chat.error::before { background: #f85149; }
   .chat.idle::before { background: #484f58; }
@@ -169,6 +170,7 @@
   }
   .working .dot { background: #f0883e; box-shadow: 0 0 4px #f0883e88; animation: pulse 1.5s ease-in-out infinite; }
   .thinking .dot { background: #a371f7; box-shadow: 0 0 4px #a371f788; animation: pulse 2s ease-in-out infinite; }
+  .awaiting .dot { background: #58a6ff; box-shadow: 0 0 4px #58a6ff88; animation: pulse 1.8s ease-in-out infinite; }
   .done .dot { background: #3fb950; }
   .error .dot { background: #f85149; animation: pulse 0.8s ease-in-out infinite; }
   .idle .dot { background: #484f58; }
@@ -188,6 +190,7 @@
   }
   .working .badge { background: rgba(240,136,62,0.15); color: #f0883e; }
   .thinking .badge { background: rgba(163,113,247,0.15); color: #a371f7; }
+  .awaiting .badge { background: rgba(88,166,255,0.15); color: #58a6ff; }
   .done .badge { background: rgba(63,185,80,0.15); color: #3fb950; }
   .error .badge { background: rgba(248,81,73,0.15); color: #f85149; }
   .idle .badge { background: rgba(72,79,88,0.15); color: #484f58; }
@@ -207,6 +210,16 @@
   }
   .chat:hover .chat-close { opacity: 0.7; }
   .chat-close:hover { opacity: 1 !important; background: rgba(248,81,73,0.35); }
+
+  .context-tokens {
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.3px;
+    transition: color 0.3s ease;
+  }
+  .context-tokens .k { opacity: 0.7; margin-left: 1px; }
 
   /* Settings panel */
   .settings {
@@ -434,6 +447,34 @@ let showingSettings = false;
 const SOURCE_LABELS = { claude: 'C', codex: 'X', openwebui: 'W', unknown: '?' };
 const SHOW_SOURCE_ICON = window.widget?.config?.show_source_icon !== false;
 
+const CTX_WINDOWS = window.widget?.config?.context_window_tokens || { default: 200000 };
+const CTX_THRESHOLDS = window.widget?.config?.context_bar_thresholds || { "0": "#3fb950", "60": "#f0883e", "85": "#f85149" };
+const CTX_STOPS = Object.entries(CTX_THRESHOLDS).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]);
+
+function lerpHex(a, b, t) {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ar = (pa >> 16) & 0xff, ag = (pa >> 8) & 0xff, ab = pa & 0xff;
+  const br = (pb >> 16) & 0xff, bg = (pb >> 8) & 0xff, bb = pb & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return `rgb(${r},${g},${bl})`;
+}
+
+function contextColor(pct) {
+  if (!CTX_STOPS.length) return '#3fb950';
+  if (pct <= CTX_STOPS[0][0]) return CTX_STOPS[0][1];
+  const last = CTX_STOPS[CTX_STOPS.length - 1];
+  if (pct >= last[0]) return last[1];
+  for (let i = 0; i < CTX_STOPS.length - 1; i++) {
+    const [x0, c0] = CTX_STOPS[i];
+    const [x1, c1] = CTX_STOPS[i + 1];
+    if (pct >= x0 && pct <= x1) return lerpHex(c0, c1, (pct - x0) / (x1 - x0));
+  }
+  return CTX_STOPS[0][1];
+}
+
 // Window controls
 document.getElementById('minBtn').addEventListener('click', () => window.widget.minimize());
 document.getElementById('closeBtn').addEventListener('click', () => window.widget.close());
@@ -556,6 +597,21 @@ function makeChat(c, isNew) {
   close.addEventListener('click', () => dismissChat(c.id));
   el.appendChild(close);
 
+  if (typeof c.inputTokens === 'number') {
+    const windowSize = CTX_WINDOWS[c.model] ?? CTX_WINDOWS.default ?? 200000;
+    const pct = windowSize ? Math.min(100, (c.inputTokens / windowSize) * 100) : 0;
+    const tokens = document.createElement('span');
+    tokens.className = 'context-tokens';
+    tokens.style.color = contextColor(pct);
+    tokens.title = `${Math.round(pct)}% of ${windowSize.toLocaleString()} tokens (${c.inputTokens.toLocaleString()}${c.model ? ', ' + c.model : ''})`;
+    tokens.appendChild(document.createTextNode(Math.round(c.inputTokens / 1000)));
+    const k = document.createElement('span');
+    k.className = 'k';
+    k.textContent = 'k';
+    tokens.appendChild(k);
+    el.appendChild(tokens);
+  }
+
   return el;
 }
 
@@ -575,7 +631,7 @@ function render(chats) {
   const active = chats.filter(c => c.status === 'working' || c.status === 'thinking').length;
   countEl.textContent = active > 0 ? active + ' active' : chats.length + ' total';
 
-  const order = { working: 0, thinking: 1, error: 2, idle: 3, done: 4 };
+  const order = { working: 0, thinking: 1, awaiting: 2, error: 3, idle: 4, done: 5 };
   chats.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || b.updated - a.updated);
 
   chats.forEach(c => {
