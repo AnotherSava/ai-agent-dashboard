@@ -1,5 +1,6 @@
 """Tests for integrations/claude_hook.py"""
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -10,9 +11,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "integrations"))
 from claude_hook import (
     DEFAULT_CONFIG,
     build_body,
+    classify,
     derive_chat_id,
+    last_assistant_ends_with_question,
     load_config,
 )
+
+
+def _write_transcript(lines: list[dict]) -> Path:
+    fd, raw_path = tempfile.mkstemp(suffix=".jsonl")
+    os.close(fd)
+    path = Path(raw_path)
+    with path.open("w", encoding="utf-8") as f:
+        for obj in lines:
+            f.write(json.dumps(obj) + "\n")
+    return path
+
+
+def _assistant_text_line(text: str) -> dict:
+    return {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": text}]}}
 
 
 class DeriveChatIdTests(unittest.TestCase):
@@ -72,23 +89,82 @@ class BuildBodyTests(unittest.TestCase):
         body = build_body("working", {"prompt": "   "}, "demo")
         self.assertNotIn("label", body)
 
-    def test_done_omits_label_so_widget_preserves_prior(self) -> None:
+    def test_done_without_transcript_emits_done_and_omits_label(self) -> None:
         body = build_body("done", {"prompt": "ignored"}, "demo")
         self.assertEqual(body["status"], "done")
         self.assertNotIn("label", body)
 
-    def test_idle_without_message_omits_label(self) -> None:
+    def test_done_with_question_ending_becomes_awaiting(self) -> None:
+        transcript = _write_transcript([_assistant_text_line("Should I proceed?")])
+        try:
+            body = build_body("done", {"transcript_path": str(transcript)}, "demo")
+            self.assertEqual(body["status"], "awaiting")
+            self.assertEqual(body["label"], "has a question")
+        finally:
+            transcript.unlink()
+
+    def test_done_without_question_ending_stays_done(self) -> None:
+        transcript = _write_transcript([_assistant_text_line("All tests passing.")])
+        try:
+            body = build_body("done", {"transcript_path": str(transcript)}, "demo")
+            self.assertEqual(body["status"], "done")
+            self.assertNotIn("label", body)
+        finally:
+            transcript.unlink()
+
+    def test_idle_session_start_has_no_notification_type(self) -> None:
         body = build_body("idle", {"cwd": "/some/path"}, "demo")
         self.assertEqual(body["status"], "idle")
         self.assertNotIn("label", body)
 
-    def test_idle_with_message_uses_it_as_label(self) -> None:
-        body = build_body("idle", {"message": "Claude needs your permission"}, "demo")
-        self.assertEqual(body["status"], "idle")
-        self.assertEqual(body["label"], "Claude needs your permission")
+    def test_notification_permission_prompt_becomes_awaiting(self) -> None:
+        body = build_body(
+            "idle",
+            {"notification_type": "permission_prompt", "message": "Claude needs your permission to use Bash"},
+            "demo",
+        )
+        self.assertEqual(body["status"], "awaiting")
+        self.assertEqual(body["label"], "needs approval: Bash")
 
-    def test_idle_truncates_long_message(self) -> None:
-        body = build_body("idle", {"message": "y" * 200}, "demo")
+    def test_notification_plan_approval_becomes_awaiting(self) -> None:
+        body = build_body("idle", {"notification_type": "plan_approval", "message": "ignored"}, "demo")
+        self.assertEqual(body["status"], "awaiting")
+        self.assertEqual(body["label"], "plan approval")
+
+    def test_notification_idle_prompt_with_question_becomes_awaiting(self) -> None:
+        transcript = _write_transcript([_assistant_text_line("What would you like me to do next?")])
+        try:
+            body = build_body(
+                "idle",
+                {"notification_type": "idle_prompt", "transcript_path": str(transcript)},
+                "demo",
+            )
+            self.assertEqual(body["status"], "awaiting")
+            self.assertEqual(body["label"], "has a question")
+        finally:
+            transcript.unlink()
+
+    def test_notification_idle_prompt_without_question_becomes_done(self) -> None:
+        transcript = _write_transcript([_assistant_text_line("All set.")])
+        try:
+            body = build_body(
+                "idle",
+                {"notification_type": "idle_prompt", "transcript_path": str(transcript)},
+                "demo",
+            )
+            self.assertEqual(body["status"], "done")
+            self.assertNotIn("label", body)
+        finally:
+            transcript.unlink()
+
+    def test_notification_without_type_but_with_message_becomes_awaiting(self) -> None:
+        body = build_body("idle", {"message": "Claude needs your attention"}, "demo")
+        self.assertEqual(body["status"], "awaiting")
+        self.assertEqual(body["label"], "Claude needs your attention")
+
+    def test_notification_label_truncates_long_message(self) -> None:
+        body = build_body("idle", {"notification_type": "attention", "message": "y" * 200}, "demo")
+        self.assertEqual(body["status"], "awaiting")
         self.assertEqual(len(body["label"]), 60)
 
     def test_clear_returns_clear_action_only(self) -> None:
@@ -106,6 +182,63 @@ class BuildBodyTests(unittest.TestCase):
     def test_clear_does_not_forward_transcript_path(self) -> None:
         body = build_body("clear", {"transcript_path": "/tmp/t.jsonl"}, "demo")
         self.assertEqual(body, {"action": "clear", "id": "demo"})
+
+
+class LastAssistantEndsWithQuestionTests(unittest.TestCase):
+    def test_missing_path_returns_false(self) -> None:
+        self.assertFalse(last_assistant_ends_with_question(None))
+        self.assertFalse(last_assistant_ends_with_question(""))
+        self.assertFalse(last_assistant_ends_with_question("   "))
+
+    def test_nonexistent_file_returns_false(self) -> None:
+        self.assertFalse(last_assistant_ends_with_question("/nonexistent/transcript.jsonl"))
+
+    def test_trailing_question_mark_detected(self) -> None:
+        path = _write_transcript([_assistant_text_line("Does this look right?")])
+        try:
+            self.assertTrue(last_assistant_ends_with_question(str(path)))
+        finally:
+            path.unlink()
+
+    def test_no_trailing_question_returns_false(self) -> None:
+        path = _write_transcript([_assistant_text_line("Done.")])
+        try:
+            self.assertFalse(last_assistant_ends_with_question(str(path)))
+        finally:
+            path.unlink()
+
+    def test_skips_user_entries_and_uses_last_assistant(self) -> None:
+        path = _write_transcript([
+            _assistant_text_line("First answer?"),
+            {"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": "follow-up"}]}},
+            _assistant_text_line("Ok, done."),
+        ])
+        try:
+            self.assertFalse(last_assistant_ends_with_question(str(path)))
+        finally:
+            path.unlink()
+
+    def test_empty_assistant_text_is_ignored_for_latest(self) -> None:
+        path = _write_transcript([
+            _assistant_text_line("Real question?"),
+            _assistant_text_line("   "),
+        ])
+        try:
+            self.assertTrue(last_assistant_ends_with_question(str(path)))
+        finally:
+            path.unlink()
+
+    def test_malformed_json_lines_are_skipped(self) -> None:
+        fd, raw_path = tempfile.mkstemp(suffix=".jsonl")
+        os.close(fd)
+        path = Path(raw_path)
+        with path.open("w", encoding="utf-8") as f:
+            f.write("not json\n")
+            f.write(json.dumps(_assistant_text_line("Proceed?")) + "\n")
+        try:
+            self.assertTrue(last_assistant_ends_with_question(str(path)))
+        finally:
+            path.unlink()
 
 
 class LoadConfigTests(unittest.TestCase):

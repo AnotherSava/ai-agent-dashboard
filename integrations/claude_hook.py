@@ -67,30 +67,96 @@ def derive_chat_id(cwd, session_id: str, projects_root) -> str:
     return f"claude-{session_id[:8] or 'unknown'}"
 
 
+def last_assistant_ends_with_question(transcript_path) -> bool:
+    """Walk the transcript JSONL and return True if the latest assistant text block ends with '?'.
+
+    Used to distinguish "truly done" (Stop / idle_prompt without a trailing question)
+    from "awaiting user response" (Claude asked the user something and is blocked).
+    See ~/.claude/learnings/claude-code-integration.md for the full rationale.
+    """
+    if not isinstance(transcript_path, str) or not transcript_path.strip():
+        return False
+    try:
+        last_text = ""
+        with open(transcript_path, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    msg = json.loads(line).get("message", {}) or {}
+                except Exception:
+                    continue
+                if msg.get("role") != "assistant":
+                    continue
+                content = msg.get("content", "")
+                if isinstance(content, str) and content.strip():
+                    last_text = content.strip()
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            text = block.get("text", "")
+                            if isinstance(text, str) and text.strip():
+                                last_text = text.strip()
+        return last_text.endswith("?")
+    except OSError:
+        return False
+
+
+def _notification_label(payload: dict) -> str:
+    notif_type = payload.get("notification_type", "")
+    message = payload.get("message", "") or ""
+    if notif_type == "permission_prompt":
+        tool = message.rsplit("use ", 1)[-1] if "use " in message else "tool"
+        return f"needs approval: {tool}"
+    if notif_type == "plan_approval":
+        return "plan approval"
+    return message
+
+
+def classify(arg: str, payload: dict) -> tuple[str, str | None]:
+    """Map hook argv + payload to (status, label).
+
+    label=None means "don't set the label on the wire" (widget preserves prior value).
+    """
+    transcript_path = payload.get("transcript_path")
+    if arg == "working":
+        prompt = payload.get("prompt")
+        if isinstance(prompt, str) and prompt.strip():
+            return "working", prompt.strip().splitlines()[0][:60]
+        return "working", None
+    if arg == "done":
+        if last_assistant_ends_with_question(transcript_path):
+            return "awaiting", "has a question"
+        return "done", None
+    if arg == "idle":
+        notif_type = payload.get("notification_type")
+        message = payload.get("message")
+        if not notif_type and not (isinstance(message, str) and message.strip()):
+            return "idle", None
+        if notif_type == "idle_prompt":
+            if last_assistant_ends_with_question(transcript_path):
+                return "awaiting", "has a question"
+            return "done", None
+        label = _notification_label(payload)
+        label = label.strip().splitlines()[0][:60] if isinstance(label, str) and label.strip() else None
+        return "awaiting", label
+    return arg, None
+
+
 def build_body(arg: str, payload: dict, chat_id: str) -> dict:
     if arg == "clear":
         return {"action": "clear", "id": chat_id}
+    status, label = classify(arg, payload)
     body = {
         "action": "set",
         "id": chat_id,
-        "status": arg,
+        "status": status,
         "source": "claude",
         "updated": int(time.time() * 1000),
     }
-    # Forward transcript_path so the widget's log watcher can tail it.
     transcript_path = payload.get("transcript_path")
     if isinstance(transcript_path, str) and transcript_path.strip():
         body["transcript_path"] = transcript_path
-    # "working" uses the user's prompt as label.
-    # "idle" from a Notification (waiting for user) uses the notification message.
-    # "idle" from SessionStart (no message) and "done" omit the label so the
-    # widget preserves whatever was there.
-    prompt = payload.get("prompt")
-    message = payload.get("message")
-    if arg == "working" and isinstance(prompt, str) and prompt.strip():
-        body["label"] = prompt.strip().splitlines()[0][:60]
-    elif arg == "idle" and isinstance(message, str) and message.strip():
-        body["label"] = message.strip().splitlines()[0][:60]
+    if label:
+        body["label"] = label
     return body
 
 
