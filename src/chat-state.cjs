@@ -2,13 +2,15 @@
  * Pure helpers for chat-state merging from /api/status POSTs.
  *
  * `originalPrompt` is the sticky label for the current task — the user's
- * last substantive prompt, preserved across intra-task awaiting/error
- * cycles and short continuation inputs like "y". Cleared on task-boundary
- * states (done/idle) so the next `working` starts a fresh task.
+ * last substantive prompt. It survives awaiting / error cycles and short
+ * continuation inputs like "y", and it also survives a `done` so the
+ * just-finished row still shows what the task was (not a stale awaiting
+ * label like "needs approval: Bash"). Only `idle` clears it; the next
+ * `working` after `done`/`idle` replaces it with the new prompt.
  */
 
 function nextOriginalPrompt(existing, msg) {
-  if (msg.status === "done" || msg.status === "idle") return undefined;
+  if (msg.status === "idle") return undefined;
   const prev = existing ? existing.originalPrompt : undefined;
   if (msg.status === "working" && typeof msg.label === "string" && msg.label.trim()) {
     const prevStatus = existing ? existing.status : null;

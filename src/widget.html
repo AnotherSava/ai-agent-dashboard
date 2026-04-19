@@ -695,9 +695,9 @@ function makeChat(c, isNew) {
 
   el.appendChild(right);
 
-  const displayLabel = (c.status === 'working' || c.status === 'thinking')
-    ? (c.originalPrompt || c.label)
-    : c.label;
+  const displayLabel = (c.status === 'awaiting' || c.status === 'idle')
+    ? c.label
+    : (c.originalPrompt || c.label);
   if (displayLabel) {
     const lbl = document.createElement('div');
     lbl.className = 'chat-label';
