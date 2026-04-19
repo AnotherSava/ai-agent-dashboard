@@ -27,6 +27,7 @@
       "src/widget.html",
       "src/preload.cjs",
       "src/log-watcher.cjs",
+      "src/chat-state.cjs",
       "src/server.js",
       "assets/ai-agent-dashboard.ico",
       "config/config.example.json"

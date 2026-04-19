@@ -3,6 +3,7 @@ const path = require("path");
 const http = require("http");
 const fs = require("fs");
 const logWatcher = require("./log-watcher.cjs");
+const { nextOriginalPrompt } = require("./chat-state.cjs");
 
 const ROOT = path.join(__dirname, "..");
 const WIDGET_LOG_PATH = path.join(ROOT, "widget.log");
@@ -157,7 +158,8 @@ const httpServer = http.createServer((req, res) => {
           const model = existing ? existing.model : undefined;
           const inputTokens = existing ? existing.inputTokens : undefined;
           const statusChangedAt = (existing && existing.status === msg.status) ? existing.statusChangedAt : Date.now();
-          chats.set(msg.id, { id: msg.id, status: msg.status, label, source, updated, transcript_path, model, inputTokens, statusChangedAt });
+          const originalPrompt = nextOriginalPrompt(existing, msg);
+          chats.set(msg.id, { id: msg.id, status: msg.status, label, source, updated, transcript_path, model, inputTokens, statusChangedAt, originalPrompt });
           if (transcript_path) logWatcher.startWatching(msg.id, transcript_path, onWatcherStateChange, onWatcherError);
           broadcast();
         } else if (msg.action === "clear") {

@@ -14,7 +14,7 @@ There is no linter configured.
 ## Layout
 
 ```
-src/           Electron main + renderer + MCP server (widget.cjs, widget.html, preload.cjs, log-watcher.cjs, server.js)
+src/           Electron main + renderer + MCP server (widget.cjs, widget.html, preload.cjs, log-watcher.cjs, chat-state.cjs, server.js)
 assets/        Static assets (icon, screenshot)
 config/        config.example.json (committed) and config.json (git-ignored, user-local)
 integrations/  Hook scripts and example HTTP clients (paths hardcoded in user's ~/.claude/settings.json)
@@ -36,6 +36,7 @@ The Electron main process is also the HTTP hub. It:
 - Owns the in-memory `chats` Map (keyed by `id`) and broadcasts the full list to all SSE clients on every mutation. There is no persistence — state is lost on restart.
 - Renders `src/widget.html` in a frameless always-on-top BrowserWindow and creates a system tray icon. `src/preload.cjs` bridges `minimize`/`close` IPC from renderer to main.
 - The `config` action is how the renderer's settings UI reaches back into the main process (e.g. toggling `alwaysOnTop`, repositioning the window, opening external URLs) — this is the reverse of the normal data flow and worth understanding before adding new settings.
+- `src/chat-state.cjs` owns the sticky-prompt rule. `nextOriginalPrompt(existing, msg)` is called from the `/api/status` POST handler and decides whether the incoming label becomes the row's new `originalPrompt` or the existing one is preserved: set at task boundaries (fresh chat / previous status `done` or `idle` / not yet recorded), cleared on `done`/`idle`, otherwise preserved. The renderer reads `originalPrompt || label` for `working`/`thinking` rows so a short `y` to a permission prompt does not overwrite the task title; `awaiting`/`done`/`idle`/`error` rows still show the raw `label`.
 - `src/log-watcher.cjs` tails Claude Code transcript JSONL files when the hook forwards `transcript_path`. It fills in state between hook events (notably: resumed-after-notification, long thinking, intermediate tool steps) **and** extracts the current model + input-side token count from the most recent main-session assistant `usage` block — this drives the per-row context indicator. Sidechain entries (sub-agents) and synthetic `<synthetic>` entries are skipped so they don't override the main session's model. Watcher-to-widget merging goes through `mergeWatcherUpdate()`: the watcher can only **promote** state to `working`/`thinking`; `done`/`idle`/`awaiting`/`error` are hook-authoritative. This prevents a partial assistant text in the transcript from flipping a fresh `working` row back to `done` before the `Stop` hook has a chance to fire. Model/token updates always propagate. The first drain after `startWatching` suppresses inferred state entirely (via the `initialRead` flag) so a stale transcript tail doesn't override the hook's initial `idle`. Parse failures surface as a `status: "error"` row with `id: "watcher-error"` / `source: "watcher"` and also log to `widget.log` — never silent.
 
 ### 2. MCP server (`src/server.js`)

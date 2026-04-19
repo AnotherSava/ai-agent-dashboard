@@ -695,10 +695,13 @@ function makeChat(c, isNew) {
 
   el.appendChild(right);
 
-  if (c.label) {
+  const displayLabel = (c.status === 'working' || c.status === 'thinking')
+    ? (c.originalPrompt || c.label)
+    : c.label;
+  if (displayLabel) {
     const lbl = document.createElement('div');
     lbl.className = 'chat-label';
-    lbl.textContent = c.label;
+    lbl.textContent = displayLabel;
     el.appendChild(lbl);
   }
 

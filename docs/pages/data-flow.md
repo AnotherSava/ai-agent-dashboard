@@ -95,7 +95,7 @@ A CSRF guard rejects any POST whose `Origin` header is set to a real http/https 
 
 - HTTP request/response bodies are JSON with `Content-Type: application/json`.
 - SSE frames are `data: <json>\n\n` where `<json>` is a JSON array of chat objects.
-- Chat objects on the wire: `{ id, status, label, source, updated, transcript_path?, model?, inputTokens? }`.
+- Chat objects on the wire: `{ id, status, label, source, updated, transcript_path?, model?, inputTokens?, originalPrompt? }`.
 - MCP frames are JSON-RPC 2.0 over stdio, handled by `@modelcontextprotocol/sdk`.
 
 ## External trigger flows
@@ -450,7 +450,7 @@ Every mutation to the `chats` Map in the *Dashboard Widget* calls `widget.broadc
 
 ```
 ⇩   SSE frame to every connected renderer:
-⇩   data: [{id, status, label, source, updated, transcript_path?, model?, inputTokens?}, ...]
+⇩   data: [{id, status, label, source, updated, transcript_path?, model?, inputTokens?, originalPrompt?}, ...]
 ```
 
 ***Renderer***
@@ -458,7 +458,8 @@ Every mutation to the `chats` Map in the *Dashboard Widget* calls `widget.broadc
 1. `EventSource.onmessage` parses the JSON array and calls `widget.render()` (script-local)
 2. `render()` sorts by status priority (working → thinking → error → idle → done) then by `updated` desc
 3. For each chat, `makeChat()` builds the DOM row — source icon, pulsing dot, name/label, status badge, dismiss button, and context-token readout (text `round(inputTokens / 1000)k`, color linearly interpolated between the configured `context_bar_thresholds` stops based on `inputTokens / context_window_tokens[model]`). The readout always occupies a reserved slot; when `inputTokens` is absent the slot stays invisible but preserves row-to-row alignment
-4. `notify()` fires a desktop Notification on `done`/`error` transitions when the in-renderer notifications flag is on
+4. For `working` and `thinking` rows the label is `originalPrompt || label` — the sticky user prompt, so intra-task inputs like `y` to an approval prompt don't overwrite the task title. `originalPrompt` is populated by `chat-state.cjs#nextOriginalPrompt` on the widget side: set on `working` at task boundaries (fresh chat / previous status `done` or `idle` / not yet recorded), cleared on `done`/`idle`, otherwise preserved
+5. `notify()` fires a desktop Notification on `done`/`error` transitions when the in-renderer notifications flag is on
 
 ## Error propagation and retry
 
