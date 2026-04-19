@@ -231,7 +231,10 @@
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.3px;
     transition: color 0.3s ease;
+    min-width: 30px;
+    text-align: right;
   }
+  .context-tokens.empty { visibility: hidden; }
   .context-tokens .k { opacity: 0.7; margin-left: 1px; }
 
   /* Settings panel */
@@ -673,11 +676,11 @@ function makeChat(c, isNew) {
 
   right.appendChild(tail);
 
+  const tokens = document.createElement('span');
+  tokens.className = 'context-tokens';
   if (typeof c.inputTokens === 'number') {
     const windowSize = CTX_WINDOWS[c.model] ?? CTX_WINDOWS.default;
     const pct = windowSize ? Math.min(100, (c.inputTokens / windowSize) * 100) : 0;
-    const tokens = document.createElement('span');
-    tokens.className = 'context-tokens';
     tokens.style.color = contextColor(pct);
     tokens.title = `${Math.round(pct)}% of ${windowSize.toLocaleString()} tokens (${c.inputTokens.toLocaleString()}${c.model ? ', ' + c.model : ''})`;
     tokens.appendChild(document.createTextNode(Math.round(c.inputTokens / 1000)));
@@ -685,8 +688,10 @@ function makeChat(c, isNew) {
     k.className = 'k';
     k.textContent = 'k';
     tokens.appendChild(k);
-    right.appendChild(tokens);
+  } else {
+    tokens.classList.add('empty');
   }
+  right.appendChild(tokens);
 
   el.appendChild(right);
 

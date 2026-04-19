@@ -457,7 +457,7 @@ Every mutation to the `chats` Map in the *Dashboard Widget* calls `widget.broadc
 
 1. `EventSource.onmessage` parses the JSON array and calls `widget.render()` (script-local)
 2. `render()` sorts by status priority (working → thinking → error → idle → done) then by `updated` desc
-3. For each chat, `makeChat()` builds the DOM row — source icon, pulsing dot, name/label, status badge, dismiss button, and context-usage bar (height = `inputTokens / context_window_tokens[model] * 100`, color linearly interpolated between the configured `context_bar_thresholds` stops)
+3. For each chat, `makeChat()` builds the DOM row — source icon, pulsing dot, name/label, status badge, dismiss button, and context-token readout (text `round(inputTokens / 1000)k`, color linearly interpolated between the configured `context_bar_thresholds` stops based on `inputTokens / context_window_tokens[model]`). The readout always occupies a reserved slot; when `inputTokens` is absent the slot stays invisible but preserves row-to-row alignment
 4. `notify()` fires a desktop Notification on `done`/`error` transitions when the in-renderer notifications flag is on
 
 ## Error propagation and retry
