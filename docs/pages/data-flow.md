@@ -128,7 +128,7 @@ Claude Code fires one of five hook events per session stage. A single Python ent
 1. Load `config/config.json` via `claude_hook.load_config()` — strict: raises if the file is missing, malformed, or any of `widget_url` / `projects_root` / `benign_closers` are absent. The hook exits with stderr diagnostics on failure.
 2. Derive `chat_id` from cwd relative to `projects_root` via `claude_hook.derive_chat_id()`, falling back to folder basename or `claude-<short-session-id>`
 3. Build the request body via `claude_hook.build_body()`:
-    - For `working`, flatten whitespace in the user prompt (newlines/tabs → spaces, runs collapsed) and use the first 60 chars as `label`
+    - For `working`, flatten whitespace in the user prompt (newlines/tabs → spaces, runs collapsed) and forward the full text as `label` — the widget ellipsizes via CSS on display
     - For `done` / `idle_prompt`, walk the transcript: if the last assistant text ends with `?` AND is not one of the configured `benign_closers` (e.g. "What's next?"), emit `awaiting` with `label: "has a question"`; otherwise `done`
     - For `idle` from a Notification, use the notification `message` as `label`
     - For `idle` from SessionStart and for `done`, omit `label` so the widget preserves its prior value

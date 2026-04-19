@@ -83,9 +83,11 @@ class BuildBodyTests(unittest.TestCase):
         self.assertEqual(body["source"], "claude")
         self.assertIsInstance(body["updated"], int)
 
-    def test_working_truncates_long_prompts_to_60_chars(self) -> None:
+    def test_working_preserves_full_prompt_length(self) -> None:
+        # The hook no longer truncates — the renderer ellipsizes via CSS and the
+        # wrap-label decision uses the full text's measured width.
         body = build_body("working", {"prompt": "x" * 200}, "demo")
-        self.assertEqual(len(body["label"]), 60)
+        self.assertEqual(len(body["label"]), 200)
 
     def test_working_flattens_multiline_prompt_with_single_spaces(self) -> None:
         body = build_body("working", {"prompt": "first line\nsecond  line\twith\ttabs"}, "demo")

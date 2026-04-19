@@ -131,7 +131,7 @@ def classify(arg: str, payload: dict, benign_closers=()) -> tuple[str, str | Non
     if arg == "working":
         prompt = payload.get("prompt")
         if isinstance(prompt, str) and prompt.strip():
-            return "working", _clean_prompt(prompt)[:60]
+            return "working", _clean_prompt(prompt)
         return "working", None
     if arg == "done":
         if last_assistant_ends_with_question(transcript_path, benign_closers):
