@@ -9,13 +9,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "integrations"))
 
 from claude_hook import (
-    DEFAULT_CONFIG,
     build_body,
     classify,
     derive_chat_id,
     last_assistant_ends_with_question,
     load_config,
 )
+
+
+_VALID_CONFIG = {
+    "widget_url": "http://127.0.0.1:9077/api/status",
+    "projects_root": None,
+    "benign_closers": [],
+}
 
 
 def _write_transcript(lines: list[dict]) -> Path:
@@ -81,9 +87,9 @@ class BuildBodyTests(unittest.TestCase):
         body = build_body("working", {"prompt": "x" * 200}, "demo")
         self.assertEqual(len(body["label"]), 60)
 
-    def test_working_uses_first_line_of_multiline_prompt(self) -> None:
-        body = build_body("working", {"prompt": "first line\nsecond line"}, "demo")
-        self.assertEqual(body["label"], "first line")
+    def test_working_flattens_multiline_prompt_with_single_spaces(self) -> None:
+        body = build_body("working", {"prompt": "first line\nsecond  line\twith\ttabs"}, "demo")
+        self.assertEqual(body["label"], "first line second line with tabs")
 
     def test_working_with_empty_prompt_omits_label(self) -> None:
         body = build_body("working", {"prompt": "   "}, "demo")
@@ -218,6 +224,23 @@ class LastAssistantEndsWithQuestionTests(unittest.TestCase):
         finally:
             path.unlink()
 
+    def test_benign_closer_not_treated_as_question(self) -> None:
+        closers = ("What's next?",)
+        for text in ("What's next?", "what's next?", "Done. What's next?"):
+            path = _write_transcript([_assistant_text_line(text)])
+            try:
+                self.assertFalse(last_assistant_ends_with_question(str(path), closers), text)
+            finally:
+                path.unlink()
+
+    def test_non_matching_closer_still_awaits(self) -> None:
+        closers = ("What's next?",)
+        path = _write_transcript([_assistant_text_line("Which option do you prefer?")])
+        try:
+            self.assertTrue(last_assistant_ends_with_question(str(path), closers))
+        finally:
+            path.unlink()
+
     def test_empty_assistant_text_is_ignored_for_latest(self) -> None:
         path = _write_transcript([
             _assistant_text_line("Real question?"),
@@ -242,37 +265,50 @@ class LastAssistantEndsWithQuestionTests(unittest.TestCase):
 
 
 class LoadConfigTests(unittest.TestCase):
-    def test_missing_file_returns_defaults(self) -> None:
+    def test_missing_file_raises(self) -> None:
         missing = Path(tempfile.gettempdir()) / "definitely-not-there-12345.json"
         self.assertFalse(missing.exists())
-        self.assertEqual(load_config(missing), DEFAULT_CONFIG)
+        with self.assertRaises(OSError):
+            load_config(missing)
 
-    def test_loaded_values_override_defaults(self) -> None:
+    def test_valid_config_returns_loaded_dict(self) -> None:
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
-            json.dump({"projects_root": "/custom/root"}, f)
+            json.dump(_VALID_CONFIG, f)
             path = Path(f.name)
         try:
-            config = load_config(path)
-            self.assertEqual(config["projects_root"], "/custom/root")
-            self.assertEqual(config["widget_url"], DEFAULT_CONFIG["widget_url"])
+            self.assertEqual(load_config(path), _VALID_CONFIG)
         finally:
             path.unlink()
 
-    def test_malformed_json_falls_back_to_defaults(self) -> None:
+    def test_malformed_json_raises(self) -> None:
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
             f.write("{ not json }")
             path = Path(f.name)
         try:
-            self.assertEqual(load_config(path), DEFAULT_CONFIG)
+            with self.assertRaises(json.JSONDecodeError):
+                load_config(path)
         finally:
             path.unlink()
 
-    def test_non_object_json_falls_back_to_defaults(self) -> None:
+    def test_non_object_json_raises(self) -> None:
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
             json.dump(["not", "an", "object"], f)
             path = Path(f.name)
         try:
-            self.assertEqual(load_config(path), DEFAULT_CONFIG)
+            with self.assertRaises(ValueError):
+                load_config(path)
+        finally:
+            path.unlink()
+
+    def test_missing_required_key_raises(self) -> None:
+        incomplete = dict(_VALID_CONFIG)
+        del incomplete["widget_url"]
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(incomplete, f)
+            path = Path(f.name)
+        try:
+            with self.assertRaisesRegex(ValueError, "widget_url"):
+                load_config(path)
         finally:
             path.unlink()
 

@@ -29,12 +29,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-DEFAULT_CONFIG = {
-    "widget_url": "http://127.0.0.1:9077/api/status",
-    # e.g. "d:/projects" -- when set, a cwd underneath this root becomes a
-    # spaced relative path as chat_id. When null, falls back to folder basename.
-    "projects_root": None,
-}
+REQUIRED_CONFIG_KEYS = ("widget_url", "projects_root", "benign_closers")
 
 
 def default_config_path() -> Path:
@@ -42,16 +37,14 @@ def default_config_path() -> Path:
 
 
 def load_config(config_path: Path) -> dict:
-    config = dict(DEFAULT_CONFIG)
-    if config_path.exists():
-        try:
-            with open(config_path) as f:
-                loaded = json.load(f)
-            if isinstance(loaded, dict):
-                config.update(loaded)
-        except Exception:
-            pass
-    return config
+    with open(config_path) as f:
+        loaded = json.load(f)
+    if not isinstance(loaded, dict):
+        raise ValueError(f"{config_path} must contain a JSON object")
+    missing = [k for k in REQUIRED_CONFIG_KEYS if k not in loaded]
+    if missing:
+        raise ValueError(f"{config_path} is missing required keys: {', '.join(missing)}")
+    return loaded
 
 
 def derive_chat_id(cwd, session_id: str, projects_root) -> str:
@@ -67,12 +60,15 @@ def derive_chat_id(cwd, session_id: str, projects_root) -> str:
     return f"claude-{session_id[:8] or 'unknown'}"
 
 
-def last_assistant_ends_with_question(transcript_path) -> bool:
+def last_assistant_ends_with_question(transcript_path, benign_closers=()) -> bool:
     """Walk the transcript JSONL and return True if the latest assistant text block ends with '?'.
 
     Used to distinguish "truly done" (Stop / idle_prompt without a trailing question)
     from "awaiting user response" (Claude asked the user something and is blocked).
     See ~/.claude/learnings/claude-code-integration.md for the full rationale.
+
+    `benign_closers` are conversational closers like "What's next?" that end with '?'
+    but don't actually block — matched case-insensitively at the end of the text.
     """
     if not isinstance(transcript_path, str) or not transcript_path.strip():
         return False
@@ -95,9 +91,24 @@ def last_assistant_ends_with_question(transcript_path) -> bool:
                             text = block.get("text", "")
                             if isinstance(text, str) and text.strip():
                                 last_text = text.strip()
-        return last_text.endswith("?")
+        if not last_text.endswith("?"):
+            return False
+        lower = last_text.lower()
+        return not any(
+            lower.endswith(closer.lower())
+            for closer in benign_closers
+            if isinstance(closer, str) and closer
+        )
     except OSError:
         return False
+
+
+def _clean_prompt(text: str) -> str:
+    for ch in ('\n', '\r', '\t', '\v', '\f'):
+        text = text.replace(ch, ' ')
+    while '  ' in text:
+        text = text.replace('  ', ' ')
+    return text.strip()
 
 
 def _notification_label(payload: dict) -> str:
@@ -111,7 +122,7 @@ def _notification_label(payload: dict) -> str:
     return message
 
 
-def classify(arg: str, payload: dict) -> tuple[str, str | None]:
+def classify(arg: str, payload: dict, benign_closers=()) -> tuple[str, str | None]:
     """Map hook argv + payload to (status, label).
 
     label=None means "don't set the label on the wire" (widget preserves prior value).
@@ -120,10 +131,10 @@ def classify(arg: str, payload: dict) -> tuple[str, str | None]:
     if arg == "working":
         prompt = payload.get("prompt")
         if isinstance(prompt, str) and prompt.strip():
-            return "working", prompt.strip().splitlines()[0][:60]
+            return "working", _clean_prompt(prompt)[:60]
         return "working", None
     if arg == "done":
-        if last_assistant_ends_with_question(transcript_path):
+        if last_assistant_ends_with_question(transcript_path, benign_closers):
             return "awaiting", "has a question"
         return "done", None
     if arg == "idle":
@@ -132,7 +143,7 @@ def classify(arg: str, payload: dict) -> tuple[str, str | None]:
         if not notif_type and not (isinstance(message, str) and message.strip()):
             return "idle", None
         if notif_type == "idle_prompt":
-            if last_assistant_ends_with_question(transcript_path):
+            if last_assistant_ends_with_question(transcript_path, benign_closers):
                 return "awaiting", "has a question"
             return "done", None
         label = _notification_label(payload)
@@ -141,10 +152,10 @@ def classify(arg: str, payload: dict) -> tuple[str, str | None]:
     return arg, None
 
 
-def build_body(arg: str, payload: dict, chat_id: str) -> dict:
+def build_body(arg: str, payload: dict, chat_id: str, benign_closers=()) -> dict:
     if arg == "clear":
         return {"action": "clear", "id": chat_id}
-    status, label = classify(arg, payload)
+    status, label = classify(arg, payload, benign_closers)
     body = {
         "action": "set",
         "id": chat_id,
@@ -181,13 +192,17 @@ def main() -> None:
         payload = json.load(sys.stdin)
     except Exception:
         payload = {}
-    config = load_config(default_config_path())
+    try:
+        config = load_config(default_config_path())
+    except (OSError, ValueError, json.JSONDecodeError) as err:
+        print(f"claude_hook: {err}", file=sys.stderr)
+        sys.exit(1)
     chat_id = derive_chat_id(
         payload.get("cwd"),
         payload.get("session_id") or "",
-        config.get("projects_root"),
+        config["projects_root"],
     )
-    body = build_body(arg, payload, chat_id)
+    body = build_body(arg, payload, chat_id, config["benign_closers"])
     post(config["widget_url"], body)
 
 

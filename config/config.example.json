@@ -2,6 +2,8 @@
   "widget_url": "http://127.0.0.1:9077/api/status",
   "projects_root": "d:/projects",
   "show_source_icon": true,
+  "notifications_enabled": true,
+  "benign_closers": ["What's next?"],
   "context_window_tokens": {
     "claude-opus-4-7":    1000000,
     "claude-sonnet-4-6":  1000000,
