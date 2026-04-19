@@ -44,11 +44,6 @@
     letter-spacing: 1px;
     flex: 1;
   }
-  .titlebar .count {
-    font-size: 9px;
-    color: #484f58;
-    margin-right: 8px;
-  }
   .titlebar .controls {
     display: flex;
     gap: 4px;
@@ -101,7 +96,7 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 6px;
+    padding: 6px 0;
     scrollbar-width: thin;
     scrollbar-color: #21262d transparent;
   }
@@ -118,38 +113,28 @@
   }
 
   .chat {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 6px;
     align-items: center;
-    gap: 6px;
-    padding: 5px 8px;
-    background: #161b22;
-    border: 1px solid #21262d;
-    border-radius: 6px;
-    margin-bottom: 4px;
+    padding: 5px 8px 5px 40px;
     position: relative;
-    overflow: hidden;
+    background: #161b22;
+    margin-bottom: 2px;
     transition: background 0.2s;
   }
+  body.no-source-icon .chat { padding-left: 20px; }
+  body.no-source-icon .dot { left: 8px; }
   .chat:hover { background: #1c2128; }
-
-  .chat::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 2px;
-  }
-  .chat.working::before { background: #f0883e; }
-  .chat.thinking::before { background: #a371f7; }
-  .chat.awaiting::before { background: #58a6ff; }
-  .chat.done::before { background: #3fb950; }
-  .chat.error::before { background: #f85149; }
-  .chat.idle::before { background: #484f58; }
 
   /* Source icon */
   .source-icon {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
     width: 14px;
     height: 14px;
-    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -164,36 +149,55 @@
   .source-icon.unknown { background: #484f58; }
 
   .dot {
+    position: absolute;
+    left: 28px;
+    top: 50%;
+    transform: translateY(-50%);
     width: 6px; height: 6px;
     border-radius: 50%;
-    flex-shrink: 0;
   }
-  .working .dot { background: #f0883e; box-shadow: 0 0 4px #f0883e88; animation: pulse 1.5s ease-in-out infinite; }
-  .thinking .dot { background: #a371f7; box-shadow: 0 0 4px #a371f788; animation: pulse 2s ease-in-out infinite; }
-  .awaiting .dot { background: #58a6ff; box-shadow: 0 0 4px #58a6ff88; animation: pulse 1.8s ease-in-out infinite; }
+  .working .dot { background: #58a6ff; }
+  .thinking .dot { background: #a371f7; }
   .done .dot { background: #3fb950; }
-  .error .dot { background: #f85149; animation: pulse 0.8s ease-in-out infinite; }
-  .idle .dot { background: #484f58; }
+  .idle .dot { background: #8b949e; }
+  .awaiting .dot { background: #f0883e; box-shadow: 0 0 4px #f0883e88; animation: pulse 1.8s ease-in-out infinite; }
+  .error .dot { background: #f85149; box-shadow: 0 0 4px #f8514988; animation: pulse 0.8s ease-in-out infinite; }
 
   @keyframes pulse {
     0%, 100% { opacity: 1; transform: scale(1); }
     50% { opacity: 0.35; transform: scale(0.6); }
   }
 
-  .chat-info { flex: 1; min-width: 0; }
-  .chat-name { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .chat-label { font-size: 9px; color: #8b949e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-name { grid-column: 1; grid-row: 1; min-width: 0; font-size: 11px; line-height: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 3px; margin-bottom: -3px; }
+
+  /* Default: label sits in column 1 of row 2 (leaving column 2 for the state cluster) */
+  .chat-label { grid-column: 1; grid-row: 2; margin-top: 3px; min-width: 0; font-size: 9px; line-height: 1; color: #8b949e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 2px; }
+  /* Wrap mode: label is too long to fit in column 1, so it spans both columns on row 2 */
+  .chat.wrap-label .chat-label { grid-column: 1 / -1; }
+
+  /* Default: state cluster spans both rows, vertically centered */
+  .chat-right {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  /* Wrap mode: state stays on row 1 only; label takes over row 2 */
+  .chat.wrap-label .chat-right { grid-row: 1; }
 
   .badge {
-    font-size: 8px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.5px; padding: 1px 5px; border-radius: 8px; flex-shrink: 0;
+    font-size: 8px; line-height: 1; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 2px 5px; border-radius: 8px; flex-shrink: 0;
+    min-width: 40px; text-align: center; font-variant-numeric: tabular-nums;
   }
-  .working .badge { background: rgba(240,136,62,0.15); color: #f0883e; }
+  .working .badge { background: rgba(88,166,255,0.15); color: #58a6ff; }
   .thinking .badge { background: rgba(163,113,247,0.15); color: #a371f7; }
-  .awaiting .badge { background: rgba(88,166,255,0.15); color: #58a6ff; }
+  .awaiting .badge { background: rgba(240,136,62,0.15); color: #f0883e; }
   .done .badge { background: rgba(63,185,80,0.15); color: #3fb950; }
   .error .badge { background: rgba(248,81,73,0.15); color: #f85149; }
-  .idle .badge { background: rgba(72,79,88,0.15); color: #484f58; }
+  .idle .badge { background: rgba(139,148,158,0.15); color: #8b949e; }
 
   .chat-enter { animation: slideIn 0.2s ease-out; }
   @keyframes slideIn {
@@ -201,18 +205,27 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  .chat-tail {
+    width: 32px; height: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .chat-timer {
+    font-size: 9px; line-height: 1; color: #8b949e; font-variant-numeric: tabular-nums;
+  }
+  .chat:hover .chat-timer { display: none; }
   .chat-close {
     width: 14px; height: 14px; border-radius: 50%; border: none;
     background: rgba(248,81,73,0.15); color: #f85149; font-size: 10px;
-    line-height: 1; cursor: pointer; display: flex; align-items: center;
-    justify-content: center; flex-shrink: 0; opacity: 0;
-    transition: opacity 0.15s, background 0.15s; -webkit-app-region: no-drag;
+    line-height: 1; cursor: pointer; display: none; align-items: center;
+    justify-content: center; opacity: 0.7;
+    transition: background 0.15s, opacity 0.15s; -webkit-app-region: no-drag;
   }
-  .chat:hover .chat-close { opacity: 0.7; }
-  .chat-close:hover { opacity: 1 !important; background: rgba(248,81,73,0.35); }
+  .chat:hover .chat-close { display: flex; }
+  .chat-close:hover { opacity: 1; background: rgba(248,81,73,0.35); }
 
   .context-tokens {
     font-size: 12px;
+    line-height: 1;
     font-weight: 700;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
@@ -355,7 +368,6 @@
 <div class="container">
   <div class="titlebar">
     <h1 id="titleText">AI Agents</h1>
-    <span class="count" id="count"></span>
     <div class="controls">
       <button class="btn-settings" id="settingsBtn" title="Settings">&#9881;</button>
       <button class="btn-notif" id="notifBtn" title="Toggle notifications">N</button>
@@ -430,7 +442,6 @@
 
 <script>
 const root = document.getElementById('root');
-const countEl = document.getElementById('count');
 const notifBtn = document.getElementById('notifBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const titleText = document.getElementById('titleText');
@@ -439,16 +450,66 @@ const settingsTab = document.getElementById('settingsTab');
 
 let prev = {};
 let retryDelay = 1000;
-let notificationsEnabled = true;
+let notificationsEnabled = window.widget.config.notifications_enabled;
 let autoDismiss = false;
 let autoDismissTimers = {};
 let showingSettings = false;
 
 const SOURCE_LABELS = { claude: 'C', codex: 'X', openwebui: 'W', unknown: '?' };
-const SHOW_SOURCE_ICON = window.widget?.config?.show_source_icon !== false;
+const STATUS_LABELS = { working: 'WORK', awaiting: 'WAIT', done: 'DONE', idle: 'IDLE', thinking: 'THINK', error: 'ERROR' };
 
-const CTX_WINDOWS = window.widget?.config?.context_window_tokens || { default: 200000 };
-const CTX_THRESHOLDS = window.widget?.config?.context_bar_thresholds || { "0": "#3fb950", "60": "#f0883e", "85": "#f85149" };
+// Canvas-based text measurer — reliable for sizing text at its natural width
+// regardless of the element's current flex/grid size. Fonts must match CSS.
+const _measureCanvas = document.createElement('canvas');
+const _measureCtx = _measureCanvas.getContext('2d');
+const LABEL_FONT = "9px 'Segoe UI', system-ui, sans-serif";
+
+function measureTextWidth(text, font) {
+  _measureCtx.font = font;
+  return _measureCtx.measureText(text || '').width;
+}
+
+function measureLabelWidth(text) { return measureTextWidth(text, LABEL_FONT); }
+
+// Label is ALWAYS on row 2. The only question is: does it fit in column 1
+// (next to the state cluster which occupies column 2), or does it need to span
+// both columns and push the state cluster to row 1 only?
+//
+// Wrap (full-width row 2) iff the label's natural pixel width exceeds the
+// column 1 width — i.e. (content width) − (state cluster width) − 1 column gap.
+function shouldWrapLabel(chatEl) {
+  const label = chatEl.querySelector('.chat-label');
+  const right = chatEl.querySelector('.chat-right');
+  if (!label || !right) return false;
+  const text = label.textContent || '';
+  if (!text) return false;
+  const style = getComputedStyle(chatEl);
+  const paddingL = parseFloat(style.paddingLeft) || 0;
+  const paddingR = parseFloat(style.paddingRight) || 0;
+  const col1Available = chatEl.clientWidth - paddingL - paddingR - right.offsetWidth - 6;
+  return measureLabelWidth(text) > col1Available;
+}
+
+function formatElapsed(sinceMs) {
+  if (!sinceMs) return '';
+  const mins = Math.max(0, Math.floor((Date.now() - sinceMs) / 60000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function updateTimers() {
+  document.querySelectorAll('.chat-timer').forEach(el => {
+    const since = Number(el.dataset.since);
+    if (since) el.textContent = formatElapsed(since);
+  });
+}
+setInterval(updateTimers, 30000);
+const SHOW_SOURCE_ICON = window.widget.config.show_source_icon;
+if (!SHOW_SOURCE_ICON) document.body.classList.add('no-source-icon');
+
+const CTX_WINDOWS = window.widget.config.context_window_tokens;
+const CTX_THRESHOLDS = window.widget.config.context_bar_thresholds;
 const CTX_STOPS = Object.entries(CTX_THRESHOLDS).map(([k, v]) => [Number(k), v]).sort((a, b) => a[0] - b[0]);
 
 function lerpHex(a, b, t) {
@@ -490,12 +551,20 @@ settingsBtn.addEventListener('click', () => {
 
 // Notification toggle (both titlebar button and settings toggle)
 const toggleNotif = document.getElementById('toggleNotif');
-function setNotif(on) {
+function setNotif(on, persist = true) {
   notificationsEnabled = on;
   notifBtn.classList.toggle('off', !on);
   toggleNotif.classList.toggle('on', on);
   notifBtn.title = on ? 'Notifications ON' : 'Notifications OFF';
+  if (persist) {
+    fetch('http://127.0.0.1:9077/api/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'config', key: 'notifications', value: on })
+    }).catch(() => {});
+  }
 }
+setNotif(notificationsEnabled, false);
 notifBtn.addEventListener('click', () => setNotif(!notificationsEnabled));
 toggleNotif.addEventListener('click', () => setNotif(!notificationsEnabled));
 
@@ -571,34 +640,41 @@ function makeChat(c, isNew) {
   dot.className = 'dot';
   el.appendChild(dot);
 
-  const info = document.createElement('div');
-  info.className = 'chat-info';
   const name = document.createElement('div');
   name.className = 'chat-name';
   name.textContent = c.id;
-  info.appendChild(name);
-  if (c.label) {
-    const lbl = document.createElement('div');
-    lbl.className = 'chat-label';
-    lbl.textContent = c.label;
-    info.appendChild(lbl);
-  }
-  el.appendChild(info);
+  el.appendChild(name);
+
+  const right = document.createElement('div');
+  right.className = 'chat-right';
 
   const badge = document.createElement('span');
   badge.className = 'badge';
-  badge.textContent = c.status;
-  el.appendChild(badge);
+  badge.textContent = STATUS_LABELS[c.status] || c.status.toUpperCase();
+  right.appendChild(badge);
+
+  const tail = document.createElement('span');
+  tail.className = 'chat-tail';
+
+  const timer = document.createElement('span');
+  timer.className = 'chat-timer';
+  if (c.statusChangedAt) {
+    timer.dataset.since = String(c.statusChangedAt);
+    timer.textContent = formatElapsed(c.statusChangedAt);
+  }
+  tail.appendChild(timer);
 
   const close = document.createElement('button');
   close.className = 'chat-close';
   close.title = 'Dismiss';
   close.textContent = '\u00D7';
   close.addEventListener('click', () => dismissChat(c.id));
-  el.appendChild(close);
+  tail.appendChild(close);
+
+  right.appendChild(tail);
 
   if (typeof c.inputTokens === 'number') {
-    const windowSize = CTX_WINDOWS[c.model] ?? CTX_WINDOWS.default ?? 200000;
+    const windowSize = CTX_WINDOWS[c.model] ?? CTX_WINDOWS.default;
     const pct = windowSize ? Math.min(100, (c.inputTokens / windowSize) * 100) : 0;
     const tokens = document.createElement('span');
     tokens.className = 'context-tokens';
@@ -609,7 +685,16 @@ function makeChat(c, isNew) {
     k.className = 'k';
     k.textContent = 'k';
     tokens.appendChild(k);
-    el.appendChild(tokens);
+    right.appendChild(tokens);
+  }
+
+  el.appendChild(right);
+
+  if (c.label) {
+    const lbl = document.createElement('div');
+    lbl.className = 'chat-label';
+    lbl.textContent = c.label;
+    el.appendChild(lbl);
   }
 
   return el;
@@ -623,13 +708,9 @@ function render(chats) {
     empty.className = 'no-chats';
     empty.textContent = 'Waiting for sessions...';
     root.appendChild(empty);
-    countEl.textContent = '';
     prev = {};
     return;
   }
-
-  const active = chats.filter(c => c.status === 'working' || c.status === 'thinking').length;
-  countEl.textContent = active > 0 ? active + ' active' : chats.length + ' total';
 
   const order = { working: 0, thinking: 1, awaiting: 2, error: 3, idle: 4, done: 5 };
   chats.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || b.updated - a.updated);
@@ -639,6 +720,7 @@ function render(chats) {
       const src = (c.source || 'AI').charAt(0).toUpperCase() + (c.source || 'AI').slice(1);
       if (c.status === 'done') notify(src + ': Done', c.id);
       if (c.status === 'error') notify(src + ': Error', c.id);
+      if (c.status === 'awaiting') notify(src + ': Waiting for input', c.id);
     }
     if (autoDismiss && c.status === 'done' && !autoDismissTimers[c.id]) {
       autoDismissTimers[c.id] = setTimeout(() => {
@@ -658,7 +740,18 @@ function render(chats) {
     newPrev[c.id] = c.status;
   });
   prev = newPrev;
+  requestAnimationFrame(adjustLabelWraps);
 }
+
+function adjustLabelWraps() {
+  root.querySelectorAll('.chat').forEach(chatEl => {
+    const label = chatEl.querySelector('.chat-label');
+    if (!label) { chatEl.classList.remove('wrap-label'); return; }
+    chatEl.classList.toggle('wrap-label', shouldWrapLabel(chatEl));
+  });
+}
+
+window.addEventListener('resize', adjustLabelWraps);
 
 function dismissChat(id) {
   fetch('http://127.0.0.1:9077/api/status', {

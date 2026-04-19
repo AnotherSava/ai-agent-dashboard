@@ -125,10 +125,11 @@ Claude Code fires one of five hook events per session stage. A single Python ent
 
 ***Claude Code Hook***
 
-1. Load `config/config.json` via `claude_hook.load_config()` (merges with `DEFAULT_CONFIG`)
+1. Load `config/config.json` via `claude_hook.load_config()` — strict: raises if the file is missing, malformed, or any of `widget_url` / `projects_root` / `benign_closers` are absent. The hook exits with stderr diagnostics on failure.
 2. Derive `chat_id` from cwd relative to `projects_root` via `claude_hook.derive_chat_id()`, falling back to folder basename or `claude-<short-session-id>`
 3. Build the request body via `claude_hook.build_body()`:
-    - For `working`, use the first 60 chars of the user prompt as `label`
+    - For `working`, flatten whitespace in the user prompt (newlines/tabs → spaces, runs collapsed) and use the first 60 chars as `label`
+    - For `done` / `idle_prompt`, walk the transcript: if the last assistant text ends with `?` AND is not one of the configured `benign_closers` (e.g. "What's next?"), emit `awaiting` with `label: "has a question"`; otherwise `done`
     - For `idle` from a Notification, use the notification `message` as `label`
     - For `idle` from SessionStart and for `done`, omit `label` so the widget preserves its prior value
     - For `clear`, emit `{action: "clear", id}` only
@@ -468,4 +469,4 @@ Every mutation to the `chats` Map in the *Dashboard Widget* calls `widget.broadc
 | Renderer ↔ widget SSE                | On `EventSource.onerror`, the renderer closes, sleeps `retryDelay` (starts at 1000ms, multiplies by 1.5 on each failure, capped at 10000ms), and reconnects. Successful messages reset the delay to 1000ms |
 | Log watcher: `stat`/`read`/`infer`   | `widget.onWatcherError()` logs to `widget.log` and inserts a synthetic `{id: "watcher-error", status: "error", source: "watcher"}` row. ENOENT during SessionStart is expected and not surfaced — the next hook event retries implicitly by re-POSTing `transcript_path` |
 | Hook payload stdin                   | Malformed JSON is caught and replaced with `{}`; the hook still POSTs with just the cwd-derived chat_id |
-| Config file read                     | Missing or malformed `config.json` falls back to the hardcoded defaults (both `widget.loadConfig()` and `claude_hook.load_config()`) |
+| Config file read                     | Missing or malformed `config.json`, or missing required keys, fails loudly: widget shows an error dialog and exits; `claude_hook.py` prints to stderr and exits 1. No silent fallback to defaults |

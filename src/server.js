@@ -9,11 +9,16 @@ import { z } from "zod";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOG_PATH = path.join(__dirname, "..", "mcp.log");
 
+function localTs(date = new Date()) {
+  const pad = (n, w = 2) => String(n).padStart(w, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
+}
+
 // JSON-lines logger. Writes to <repo>/mcp.log. Never throws.
 // Don't write to stdout -- MCP reserves stdout for protocol frames.
 function log(event, data = {}) {
   try {
-    const line = JSON.stringify({ ts: new Date().toISOString(), pid: process.pid, event, ...data }) + "\n";
+    const line = JSON.stringify({ ts: localTs(), pid: process.pid, event, ...data }) + "\n";
     fs.appendFileSync(LOG_PATH, line);
   } catch {
     /* swallow -- logging must not crash the MCP server */

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, Tray, Menu, nativeImage, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, screen, Tray, Menu, nativeImage, ipcMain, shell, dialog } = require("electron");
 const path = require("path");
 const http = require("http");
 const fs = require("fs");
@@ -7,37 +7,56 @@ const logWatcher = require("./log-watcher.cjs");
 const ROOT = path.join(__dirname, "..");
 const WIDGET_LOG_PATH = path.join(ROOT, "widget.log");
 const CONFIG_PATH = path.join(ROOT, "config", "config.json");
+function localTs(date = new Date()) {
+  const pad = (n, w = 2) => String(n).padStart(w, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
+}
+
 function logEvent(event, data = {}) {
   try {
-    fs.appendFileSync(WIDGET_LOG_PATH, JSON.stringify({ ts: new Date().toISOString(), event, ...data }) + "\n");
+    fs.appendFileSync(WIDGET_LOG_PATH, JSON.stringify({ ts: localTs(), event, ...data }) + "\n");
   } catch {}
 }
 
+const REQUIRED_CONFIG_KEYS = [
+  "show_source_icon",
+  "notifications_enabled",
+  "context_window_tokens",
+  "context_bar_thresholds",
+];
+
+let config = null;
+
 function loadConfig() {
-  const defaults = {
-    show_source_icon: true,
-    context_window_tokens: {
-      "claude-opus-4-7":    1000000,
-      "claude-sonnet-4-6":  1000000,
-      "claude-haiku-4-5":    200000,
-      "default":             200000,
-    },
-    context_bar_thresholds: {
-      "0":  "#3fb950",
-      "60": "#f0883e",
-      "85": "#f85149",
-    },
-  };
+  let raw;
   try {
-    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
-    const loaded = JSON.parse(raw);
-    return loaded && typeof loaded === "object" ? { ...defaults, ...loaded } : defaults;
-  } catch {
-    return defaults;
+    raw = fs.readFileSync(CONFIG_PATH, "utf8");
+  } catch (err) {
+    throw new Error(`Failed to read ${CONFIG_PATH}: ${err.message}`);
   }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Failed to parse ${CONFIG_PATH}: ${err.message}`);
+  }
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error(`${CONFIG_PATH} must contain a JSON object`);
+  }
+  const missing = REQUIRED_CONFIG_KEYS.filter((k) => !(k in parsed));
+  if (missing.length) {
+    throw new Error(`${CONFIG_PATH} is missing required keys: ${missing.join(", ")}`);
+  }
+  return parsed;
 }
 
-ipcMain.on("get-config", (event) => { event.returnValue = loadConfig(); });
+function writeConfig(partial) {
+  const next = { ...config, ...partial };
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(next, null, 2) + "\n");
+  config = next;
+}
+
+ipcMain.on("get-config", (event) => { event.returnValue = config; });
 
 let win;
 let tray;
@@ -59,20 +78,8 @@ const VALID_STATUSES = new Set(["idle", "working", "thinking", "awaiting", "done
 function onWatcherStateChange(chatId, update) {
   const existing = chats.get(chatId);
   if (!existing) return;
-  const next = { ...existing };
-  let changed = false;
-  if (update.state && existing.status !== update.state) {
-    next.status = update.state;
-    changed = true;
-  }
-  if (update.model && existing.model !== update.model) {
-    next.model = update.model;
-    changed = true;
-  }
-  if (typeof update.inputTokens === "number" && existing.inputTokens !== update.inputTokens) {
-    next.inputTokens = update.inputTokens;
-    changed = true;
-  }
+  logEvent("watcher_update", { id: chatId, state: update.state, model: update.model, inputTokens: update.inputTokens, lastBlockType: update.lastBlockType });
+  const { next, changed } = logWatcher.mergeWatcherUpdate(existing, update);
   if (!changed) return;
   next.updated = Date.now();
   chats.set(chatId, next);
@@ -91,6 +98,7 @@ function onWatcherError(info) {
     label: `${info.phase}: ${info.error}`.slice(0, 60),
     source: "watcher",
     updated: Date.now(),
+    statusChangedAt: Date.now(),
   });
   broadcast();
 }
@@ -135,6 +143,7 @@ const httpServer = http.createServer((req, res) => {
       try {
         const msg = JSON.parse(body);
         if (msg.action === "set") {
+          logEvent("status_post", { id: msg.id, status: msg.status, label: msg.label, source: msg.source });
           if (typeof msg.id !== "string" || !VALID_STATUSES.has(msg.status)) {
             res.writeHead(400);
             res.end("bad input");
@@ -147,10 +156,12 @@ const httpServer = http.createServer((req, res) => {
           const transcript_path = typeof msg.transcript_path === "string" ? msg.transcript_path : (existing ? existing.transcript_path : undefined);
           const model = existing ? existing.model : undefined;
           const inputTokens = existing ? existing.inputTokens : undefined;
-          chats.set(msg.id, { id: msg.id, status: msg.status, label, source, updated, transcript_path, model, inputTokens });
+          const statusChangedAt = (existing && existing.status === msg.status) ? existing.statusChangedAt : Date.now();
+          chats.set(msg.id, { id: msg.id, status: msg.status, label, source, updated, transcript_path, model, inputTokens, statusChangedAt });
           if (transcript_path) logWatcher.startWatching(msg.id, transcript_path, onWatcherStateChange, onWatcherError);
           broadcast();
         } else if (msg.action === "clear") {
+          logEvent("status_post", { action: "clear", id: msg.id });
           if (typeof msg.id === "string") {
             const existing = chats.get(msg.id);
             if (existing && existing.transcript_path) logWatcher.stopWatching(existing.transcript_path);
@@ -164,6 +175,8 @@ const httpServer = http.createServer((req, res) => {
             reposition(msg.value);
           } else if (msg.key === "openUrl") {
             safeOpenUrl(msg.value);
+          } else if (msg.key === "notifications") {
+            writeConfig({ notifications_enabled: !!msg.value });
           }
         }
         res.writeHead(200);
@@ -281,6 +294,14 @@ ipcMain.on("minimize", () => { if (win) win.hide(); });
 ipcMain.on("close", () => { app.quit(); });
 
 app.whenReady().then(() => {
+  try {
+    config = loadConfig();
+  } catch (err) {
+    logEvent("config_error", { error: String(err.message || err) });
+    dialog.showErrorBox("AI Agent Dashboard — Config error", String(err.message || err));
+    app.exit(1);
+    return;
+  }
   createTray();
   createWindow();
 });
