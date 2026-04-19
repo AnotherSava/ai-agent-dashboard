@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { inferState, splitComplete } = require("../src/log-watcher.cjs");
+const { inferState, splitComplete, mergeWatcherUpdate } = require("../src/log-watcher.cjs");
 
 const userText = (text) => JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text }] } });
 const assistantText = (text) => JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text }] } });
@@ -54,7 +54,7 @@ test("inferState: malformed JSON lines are skipped", () => {
 
 test("inferState: empty assistant text doesn't register as done", () => {
   const emptyAssistant = JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "text", text: "   " }] } });
-  assert.equal(inferState([emptyAssistant]), null);
+  assert.equal(inferState([emptyAssistant]).state, null);
 });
 
 test("inferState: extracts model and summed input-side tokens from assistant usage", () => {
@@ -151,4 +151,104 @@ test("splitComplete: empty chunk and empty leftover", () => {
   const r = splitComplete("", "");
   assert.deepEqual(r.lines, []);
   assert.equal(r.leftover, "");
+});
+
+// Transcript edge cases that drive state derivation across turn boundaries.
+// These specifically exercise the race where a fresh turn appears in the
+// transcript before the UserPromptSubmit hook's POST arrives at the widget.
+
+test("inferState: past assistant text + new user text — newest wins (working)", () => {
+  // Simulates: prior response completed, user just submitted a new prompt.
+  assert.equal(inferState([assistantText("previous answer"), userText("new prompt")]).state, "working");
+});
+
+test("inferState: user text followed by partial assistant text returns done", () => {
+  // Simulates the race: Claude started streaming a response while the
+  // UserPromptSubmit hook was still in flight. inferState sees the partial
+  // assistant text and classifies as done — which is why the widget must NOT
+  // treat this as authoritative (see mergeWatcherUpdate tests below).
+  assert.equal(inferState([userText("go"), assistantText("starting...")]).state, "done");
+});
+
+test("inferState: tool_use after text — tool_use wins (working)", () => {
+  assert.equal(inferState([userText("do X"), assistantText("ok"), assistantToolUse()]).state, "working");
+});
+
+test("inferState: lastBlockType reflects newest content block", () => {
+  const thinking = JSON.stringify({ type: "assistant", message: { role: "assistant", content: [{ type: "thinking", thinking: "…" }] } });
+  assert.equal(inferState([thinking]).lastBlockType, "thinking");
+  assert.equal(inferState([assistantToolUse()]).lastBlockType, "tool_use");
+  assert.equal(inferState([userText("hi")]).lastBlockType, "text");
+});
+
+// mergeWatcherUpdate: the watcher-to-widget state policy. Watcher can upgrade
+// to working/thinking; hooks own done/idle/awaiting/error.
+
+test("mergeWatcherUpdate: upgrades done → working", () => {
+  const { next, changed } = mergeWatcherUpdate(
+    { status: "done", model: null, inputTokens: null },
+    { state: "working" },
+    1000,
+  );
+  assert.equal(next.status, "working");
+  assert.equal(next.statusChangedAt, 1000);
+  assert.equal(changed, true);
+});
+
+test("mergeWatcherUpdate: does NOT downgrade working → done (the race-fix)", () => {
+  const { next, changed } = mergeWatcherUpdate(
+    { status: "working", model: null, inputTokens: null },
+    { state: "done" },
+  );
+  assert.equal(next.status, "working");
+  assert.equal(changed, false);
+});
+
+test("mergeWatcherUpdate: does NOT override awaiting (hook-authoritative)", () => {
+  const { next, changed } = mergeWatcherUpdate(
+    { status: "awaiting" },
+    { state: "done" },
+  );
+  assert.equal(next.status, "awaiting");
+  assert.equal(changed, false);
+});
+
+test("mergeWatcherUpdate: error → working IS allowed (working is watcher-allowed)", () => {
+  // The allow-list checks the INCOMING state, not the existing one. Any existing
+  // state can be promoted to working/thinking by the watcher (e.g. Claude
+  // recovered from error and a tool_use appeared in the transcript).
+  const { next, changed } = mergeWatcherUpdate(
+    { status: "error" },
+    { state: "working" },
+  );
+  assert.equal(next.status, "working");
+  assert.equal(changed, true);
+});
+
+test("mergeWatcherUpdate: ignores null state (initial-read case)", () => {
+  const { next, changed } = mergeWatcherUpdate(
+    { status: "idle", model: null, inputTokens: null },
+    { state: null, model: "claude-opus-4-7", inputTokens: 500 },
+  );
+  assert.equal(next.status, "idle");
+  assert.equal(next.model, "claude-opus-4-7");
+  assert.equal(next.inputTokens, 500);
+  assert.equal(changed, true);
+});
+
+test("mergeWatcherUpdate: no-op when everything matches", () => {
+  const { changed } = mergeWatcherUpdate(
+    { status: "working", model: "claude-opus-4-7", inputTokens: 100 },
+    { state: "working", model: "claude-opus-4-7", inputTokens: 100 },
+  );
+  assert.equal(changed, false);
+});
+
+test("mergeWatcherUpdate: model-only change counts as change", () => {
+  const { next, changed } = mergeWatcherUpdate(
+    { status: "working", model: null, inputTokens: 100 },
+    { state: null, model: "claude-sonnet-4-6", inputTokens: 100 },
+  );
+  assert.equal(next.model, "claude-sonnet-4-6");
+  assert.equal(changed, true);
 });

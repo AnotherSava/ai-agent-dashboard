@@ -28,6 +28,7 @@ function inferState(jsonLines) {
   let state = null;
   let model = null;
   let inputTokens = null;
+  let lastBlockType = null;
 
   for (let i = jsonLines.length - 1; i >= 0; i--) {
     let obj;
@@ -37,6 +38,11 @@ function inferState(jsonLines) {
     const msg = obj.message;
     const content = msg && Array.isArray(msg.content) ? msg.content : null;
     if (!content) continue;
+
+    if (lastBlockType === null && content.length > 0) {
+      const last = content[content.length - 1];
+      if (last && typeof last.type === "string") lastBlockType = last.type;
+    }
 
     // Only capture model/usage from MAIN-session assistant entries produced
     // by a real Claude model. Skipped:
@@ -67,11 +73,11 @@ function inferState(jsonLines) {
       else if (type === "assistant" && hasText) state = "done";
     }
 
-    if (state !== null && model !== null && inputTokens !== null) break;
+    if (state !== null && model !== null && inputTokens !== null && lastBlockType !== null) break;
   }
 
-  if (state === null && model === null && inputTokens === null) return null;
-  return { state, model, inputTokens };
+  if (state === null && model === null && inputTokens === null && lastBlockType === null) return null;
+  return { state, model, inputTokens, lastBlockType };
 }
 
 // Given any bytes-of-JSONL that may straddle line boundaries, return the
@@ -117,7 +123,14 @@ function drain(entry, onStateChange, onError) {
       if (split.lines.length) {
         try {
           const update = inferState(split.lines);
-          if (update) onStateChange(entry.chatId, update);
+          if (update) {
+            if (entry.initialRead) {
+              entry.initialRead = false;
+              onStateChange(entry.chatId, { state: null, model: update.model, inputTokens: update.inputTokens, lastBlockType: update.lastBlockType });
+            } else {
+              onStateChange(entry.chatId, update);
+            }
+          }
         } catch (e) {
           onError({ chatId: entry.chatId, transcriptPath: entry.transcriptPath, phase: "infer", error: e.message });
         }
@@ -135,8 +148,11 @@ function startWatching(chatId, transcriptPath, onStateChange, onError) {
 
   // Leave position at 0 so the initial drain reads any pre-existing content —
   // needed on widget restart or session resume, where the transcript already
-  // has usage/model data we want to surface immediately.
-  const entry = { chatId, transcriptPath, position: 0, leftover: "", watcher: null, pending: false, dirty: false };
+  // has usage/model data we want to surface immediately. The `initialRead`
+  // flag suppresses the inferred *state* from that first drain: the hook owns
+  // the current state (e.g. `idle` on SessionStart), while the transcript's
+  // last assistant text would otherwise derive `done` from prior activity.
+  const entry = { chatId, transcriptPath, position: 0, leftover: "", watcher: null, pending: false, dirty: false, initialRead: true };
 
   try {
     fs.statSync(transcriptPath);
@@ -177,4 +193,37 @@ function stopAll() {
   watchers.clear();
 }
 
-module.exports = { startWatching, stopWatching, stopAll, inferState, splitComplete };
+// Merge a watcher `update` into an `existing` chat row, returning { next, changed }.
+// Pure function — no side effects, no Date.now() call (caller sets .updated if wanted).
+// The `now` parameter is injectable for test determinism.
+//
+// Policy: watcher can only transition state to "working"/"thinking". Other
+// terminal states (done/idle/awaiting/error) are hook-authoritative. The watcher
+// often reads text-in-flight as "done" before the Stop hook fires — allowing
+// that downgrade would flip rows back to done during fresh turns.
+const WATCHER_ALLOWED_TRANSITIONS = new Set(["working", "thinking"]);
+
+function mergeWatcherUpdate(existing, update, now = Date.now()) {
+  const next = { ...existing };
+  let changed = false;
+  if (
+    update.state &&
+    WATCHER_ALLOWED_TRANSITIONS.has(update.state) &&
+    existing.status !== update.state
+  ) {
+    next.status = update.state;
+    next.statusChangedAt = now;
+    changed = true;
+  }
+  if (update.model && existing.model !== update.model) {
+    next.model = update.model;
+    changed = true;
+  }
+  if (typeof update.inputTokens === "number" && existing.inputTokens !== update.inputTokens) {
+    next.inputTokens = update.inputTokens;
+    changed = true;
+  }
+  return { next, changed };
+}
+
+module.exports = { startWatching, stopWatching, stopAll, inferState, splitComplete, mergeWatcherUpdate };
