@@ -55,13 +55,6 @@ test("working → working + new label → preserves (no boundary crossed)", () =
   );
 });
 
-test("thinking → working + label → preserves (no boundary crossed)", () => {
-  assert.equal(
-    nextOriginalPrompt(make("thinking", "task A"), { status: "working", label: "task B" }),
-    "task A",
-  );
-});
-
 test("working (no originalPrompt yet) + working + label → sets it", () => {
   // Watcher can promote to working before the hook's UserPromptSubmit lands,
   // leaving originalPrompt empty. The hook's follow-up POST must still fill it.

@@ -182,7 +182,7 @@ test("inferState: lastBlockType reflects newest content block", () => {
 });
 
 // mergeWatcherUpdate: the watcher-to-widget state policy. Watcher can upgrade
-// to working/thinking; hooks own done/idle/awaiting/error.
+// to working; hooks own done/idle/awaiting/error.
 
 test("mergeWatcherUpdate: upgrades done → working", () => {
   const { next, changed } = mergeWatcherUpdate(
@@ -215,8 +215,8 @@ test("mergeWatcherUpdate: does NOT override awaiting (hook-authoritative)", () =
 
 test("mergeWatcherUpdate: error → working IS allowed (working is watcher-allowed)", () => {
   // The allow-list checks the INCOMING state, not the existing one. Any existing
-  // state can be promoted to working/thinking by the watcher (e.g. Claude
-  // recovered from error and a tool_use appeared in the transcript).
+  // state can be promoted to working by the watcher (e.g. Claude recovered
+  // from error and a tool_use appeared in the transcript).
   const { next, changed } = mergeWatcherUpdate(
     { status: "error" },
     { state: "working" },

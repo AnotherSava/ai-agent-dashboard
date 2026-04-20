@@ -74,7 +74,7 @@ function broadcast() {
   }
 }
 
-const VALID_STATUSES = new Set(["idle", "working", "thinking", "awaiting", "done", "error"]);
+const VALID_STATUSES = new Set(["idle", "working", "awaiting", "done", "error"]);
 
 function onWatcherStateChange(chatId, update) {
   const existing = chats.get(chatId);
@@ -112,7 +112,7 @@ function safeOpenUrl(url) {
   } catch {}
 }
 
-// HTTP server on port 9077 — receives POSTs from MCP, serves SSE to widget renderer
+// HTTP server on port 9077 — receives POSTs from hooks/integrations, serves SSE to widget renderer
 const httpServer = http.createServer((req, res) => {
   // SSE endpoint for the renderer
   if (req.url === "/events") {
@@ -128,7 +128,7 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
-  // POST from MCP server / integrations / renderer
+  // POST from integrations / renderer
   if (req.url === "/api/status" && req.method === "POST") {
     // CSRF guard: reject browser requests from http/https origins.
     // No Origin header = non-browser client (curl, Node, Python). Renderer loads via file:// → Origin: null.

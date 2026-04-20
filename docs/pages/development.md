@@ -43,7 +43,6 @@ Output: `dist/AI-Agent-Dashboard.exe`, single-file Windows portable (~90 MB). Fi
 ## Commands
 
 - `npm start` — launch the Electron widget (`src/widget.cjs`). Starts the BrowserWindow and the HTTP/SSE hub on `127.0.0.1:9077`.
-- `npm run mcp` — run the MCP stdio server (`src/server.js`) standalone. Usually invoked by Claude Code via `mcpServers` config, not manually.
 - `npm run build` — produce the portable Windows exe via electron-builder.
 - `npm test` — both test suites. `npm run test:py` / `npm run test:js` run them individually.
 
@@ -51,11 +50,9 @@ There is no linter configured.
 
 ## Architecture
 
-Two independent processes communicate over localhost HTTP on port 9077. The port is hardcoded — changing it requires editing `src/widget.cjs`, `src/server.js`, `src/widget.html`, and every integration script.
+The widget is a single Electron process that also hosts the localhost HTTP hub on port 9077. The port is hardcoded — changing it requires editing `src/widget.cjs`, `src/widget.html`, and every integration script.
 
 **Electron widget** (`src/widget.cjs`) is the HTTP hub. It owns the in-memory chat Map, accepts POSTs to `/api/status`, streams Server-Sent Events on `/events`, renders `src/widget.html` in a frameless always-on-top BrowserWindow, and manages a system tray icon. It also embeds the log watcher (`src/log-watcher.cjs`) that tails Claude Code transcript JSONL files to refine state between hook events.
-
-**MCP stdio server** (`src/server.js`) is spawned per Claude Code session when registered in the user's MCP config. It exposes `set_status` and `clear_status` tools and forwards both as HTTP POSTs to the widget. Secondary to the hook-based flow — hooks cover the routine lifecycle, MCP is the escape hatch for mid-response state changes like `thinking` and `error` that hooks don't observe.
 
 State is in-memory only. Widget restart loses all rows. The Claude Code hook re-populates on the next session event; other integrations repopulate on their next POST.
 
@@ -67,7 +64,7 @@ src/
   widget.html          Renderer — DOM-built chat list, settings tab, SSE client
   preload.cjs          IPC bridge: minimize / close buttons from renderer → main
   log-watcher.cjs      Tails Claude Code transcript JSONL, infers state from last conversational entry
-  server.js            MCP stdio server — set_status / clear_status forward to widget HTTP
+  chat-state.cjs       Sticky-prompt rule (originalPrompt) for /api/status merges
 integrations/
   claude_hook.py       Primary integration: Claude Code hook, POSTs to /api/status
   codex_hook.sh        Bash wrapper around the `codex` CLI
@@ -79,8 +76,10 @@ config/
   config.example.json  Committed template
   config.json          Git-ignored, user-local overrides
 tests/
-  test_claude_hook.py   Python unittest (build_body, derive_chat_id, load_config)
-  log-watcher.test.cjs  node:test (inferState, splitComplete)
+  test_claude_hook.py      Python unittest (build_body, derive_chat_id, load_config)
+  log-watcher.test.cjs     node:test (inferState, splitComplete, mergeWatcherUpdate)
+  chat-state.test.cjs      node:test (nextOriginalPrompt state machine)
+  widget-layout.test.cjs   node:test (layout invariants via regex on widget.html)
 launch.vbs             Windows launcher that starts the widget without a console window
 ```
 
@@ -89,12 +88,11 @@ launch.vbs             Windows launcher that starts the widget without a console
 - Project is `"type": "module"`, but the Electron main process and preload are `.cjs` because Electron's main loader expects CommonJS.
 - `build.files` in `package.json` is an **explicit allowlist** for electron-builder — any new runtime asset must be added there or it won't ship in the packaged exe.
 - Both `src/widget.cjs` and `integrations/claude_hook.py` resolve `config/config.json` relative to their own file location, not the current working directory.
-- Logs: the MCP server writes `mcp.log` at the repo root; the widget writes `widget.log`. Both JSON-lines. Both git-ignored by `*.log`.
-- The MCP server posts to the widget with a 2-second timeout and swallows errors toward the MCP client — a missing widget is expected and never surfaced as a tool error. All outcomes still log to `mcp.log`.
+- Logs: the widget writes JSON-lines to `widget.log` at the repo root (git-ignored by `*.log`).
 
 ### Status enum
 
-`idle | working | thinking | awaiting | done | error` — defined in `src/server.js` (zod schema), validated in `src/widget.cjs` (`VALID_STATUSES`), referenced by color/badge CSS classes in `src/widget.html`, and documented on the [Other Tools](other-tools) page. Adding a new status requires touching all four.
+`idle | working | awaiting | done | error` — validated in `src/widget.cjs` (`VALID_STATUSES`), referenced by color/badge CSS classes in `src/widget.html`, and documented on the [Other Tools](other-tools) page. Adding a new status requires touching all three.
 
 ### Source identity convention
 

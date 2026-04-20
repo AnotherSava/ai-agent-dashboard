@@ -50,16 +50,6 @@ Restart any open Claude Code sessions — hooks are loaded at session start, so 
 
 Requires Python 3 on PATH (the hook is a Python script).
 
-### Optional: MCP server
-
-Hooks cover the main lifecycle reliably (start / prompt / stop / notification / end). If you want Claude to signal additional states like `thinking` or `error` mid-response, register the MCP server as well:
-
-```bash
-claude mcp add --scope user claude-status node <repo>/src/server.js
-```
-
-The MCP tool and the hooks converge on the same session row when the `cwd` matches — no duplicate entries. All MCP calls log to `mcp.log` at the repo root for post-hoc inspection.
-
 ### Live state tracking
 
 Beyond the hook-driven transitions, the widget watches the Claude Code transcript JSONL file for the active session and updates state when new conversational entries appear. This catches cases hooks don't observe:
@@ -85,9 +75,8 @@ With that, a session in `d:/projects/bga/assistant` shows up as `bga assistant` 
 - **Five lifecycle hooks**: SessionStart → idle, UserPromptSubmit → working, Notification → awaiting (with tool / message label), Stop → done or awaiting (classified from the transcript's last assistant text), SessionEnd → clear.
 - **Transcript watcher**: tails `~/.claude/projects/<project>/<session>.jsonl`. Infers state from the last conversational entry (tool_use / tool_result → working; assistant text → done) and extracts the current model + input-side token count from the most recent assistant `usage` block to drive the context indicator.
 - **Context-usage indicator**: colored token count on the right of each row. Window sizes and threshold colors are configurable in `config/config.json` (`context_window_tokens`, `context_bar_thresholds`) — defaults assume the 1M-context variants of Opus 4.7 / Sonnet 4.6.
-- **Prompt-as-label**: the user prompt displays under the session name for the life of the task — through `working`, `thinking`, the `done` that follows it, and any `error` — and stays sticky across `awaiting`/approval cycles, so a short `y` to a permission prompt doesn't overwrite the task title. `awaiting` rows show what's blocking instead (e.g. `needs approval: Bash`). Long prompts truncate with an ellipsis or wrap onto a full-width row depending on available space.
+- **Prompt-as-label**: the user prompt displays under the session name for the life of the task — through `working`, the `done` that follows it, and any `error` — and stays sticky across `awaiting`/approval cycles, so a short `y` to a permission prompt doesn't overwrite the task title. `awaiting` rows show what's blocking instead (e.g. `needs approval: Bash`). Long prompts truncate with an ellipsis or wrap onto a full-width row depending on available space.
 - **Readable session IDs**: cwd basename by default, subpath-under-`projects_root` if configured.
-- **Optional MCP escape hatch**: for mid-response state changes (`thinking`, `error`) that hooks don't observe.
 - **Loud-but-not-silent error surface**: transcript parse failures show as a red row plus a line in `widget.log`, so missed state is never invisible.
 
 ### Standard features

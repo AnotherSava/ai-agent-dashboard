@@ -157,7 +157,6 @@
     border-radius: 50%;
   }
   .working .dot { background: #58a6ff; }
-  .thinking .dot { background: #a371f7; }
   .done .dot { background: #3fb950; }
   .idle .dot { background: #8b949e; }
   .awaiting .dot { background: #f0883e; box-shadow: 0 0 4px #f0883e88; animation: pulse 1.8s ease-in-out infinite; }
@@ -193,7 +192,6 @@
     min-width: 40px; text-align: center; font-variant-numeric: tabular-nums;
   }
   .working .badge { background: rgba(88,166,255,0.15); color: #58a6ff; }
-  .thinking .badge { background: rgba(163,113,247,0.15); color: #a371f7; }
   .awaiting .badge { background: rgba(240,136,62,0.15); color: #f0883e; }
   .done .badge { background: rgba(63,185,80,0.15); color: #3fb950; }
   .error .badge { background: rgba(248,81,73,0.15); color: #f85149; }
@@ -459,7 +457,7 @@ let autoDismissTimers = {};
 let showingSettings = false;
 
 const SOURCE_LABELS = { claude: 'C', codex: 'X', openwebui: 'W', unknown: '?' };
-const STATUS_LABELS = { working: 'WORK', awaiting: 'WAIT', done: 'DONE', idle: 'IDLE', thinking: 'THINK', error: 'ERROR' };
+const STATUS_LABELS = { working: 'WORK', awaiting: 'WAIT', done: 'DONE', idle: 'IDLE', error: 'ERROR' };
 
 // Canvas-based text measurer — reliable for sizing text at its natural width
 // regardless of the element's current flex/grid size. Fonts must match CSS.
@@ -720,7 +718,7 @@ function render(chats) {
     return;
   }
 
-  const order = { working: 0, thinking: 1, awaiting: 2, error: 3, idle: 4, done: 5 };
+  const order = { working: 0, awaiting: 1, error: 2, idle: 3, done: 4 };
   chats.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || b.updated - a.updated);
 
   chats.forEach(c => {

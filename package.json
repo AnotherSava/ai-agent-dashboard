@@ -6,7 +6,6 @@
   "main": "src/widget.cjs",
   "scripts": {
     "start": "electron src/widget.cjs",
-    "mcp": "node src/server.js",
     "build": "electron-builder --win portable",
     "test:py": "python -m unittest discover -s tests",
     "test:js": "node --test tests/*.test.cjs",
@@ -28,7 +27,6 @@
       "src/preload.cjs",
       "src/log-watcher.cjs",
       "src/chat-state.cjs",
-      "src/server.js",
       "assets/ai-agent-dashboard.ico",
       "config/config.example.json"
     ]
@@ -36,7 +34,6 @@
   "keywords": [
     "claude",
     "claude-code",
-    "mcp",
     "status",
     "dashboard",
     "electron",
@@ -47,9 +44,6 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AnotherSava/ai-agent-dashboard.git"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "electron": "^41.1.1",

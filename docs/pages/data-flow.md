@@ -7,7 +7,7 @@ title: Data Flow
 
 ---
 
-This document traces how external activity — hook firings, MCP tool calls, transcript writes, HTTP POSTs from third-party integrations — reaches the dashboard and fans out to its renderers. It is intended as a reference for anyone adding a new integration or changing the widget's internal contracts.
+This document traces how external activity — hook firings, transcript writes, HTTP POSTs from third-party integrations — reaches the dashboard and fans out to its renderers. It is intended as a reference for anyone adding a new integration or changing the widget's internal contracts.
 
 ## Components
 
@@ -34,13 +34,6 @@ Runs inside the *Dashboard Widget* process. Tails Claude Code transcript JSONL f
 Key files:
 - `src/log-watcher.cjs` — `fs.watch` + incremental reads + `inferState` + `splitComplete`
 
-### ***MCP Server***
-
-A stdio MCP server spawned by Claude Code per session. Exposes two tools and forwards every call as an HTTP POST to the *Dashboard Widget*. Locks its `chat_id` on first `set_status` call so one session cannot spawn multiple dashboard entries. All outcomes log to `mcp.log`.
-
-Key files:
-- `src/server.js` — `McpServer` registration + `postStatus` HTTP forwarder + JSON-lines logger
-
 ### ***Claude Code Hook***
 
 Python script invoked by Claude Code on five lifecycle events. Reads the hook payload from stdin, derives a `chat_id` from the cwd (or session id), and POSTs to the widget. Swallows network failure silently — a missing widget is the expected steady state.
@@ -50,7 +43,7 @@ Key files:
 
 ### ***Third-Party Integrations***
 
-Independent client scripts. Each speaks only the widget's HTTP contract — they do not share state with each other or with the MCP/hook paths. All swallow network errors on the assumption that the widget may not be running.
+Independent client scripts. Each speaks only the widget's HTTP contract — they do not share state with each other or with the hook path. All swallow network errors on the assumption that the widget may not be running.
 
 Key files:
 - `integrations/openwebui_function.py` — OpenWebUI Filter with `inlet`/`outlet` lifecycle hooks
@@ -70,18 +63,11 @@ Key files:
 
 | `action`  | Required fields                                      | Effect                                                                                   |
 |-----------|------------------------------------------------------|------------------------------------------------------------------------------------------|
-| `"set"`   | `id`, `status` (enum: idle/working/thinking/awaiting/done/error); optional `label`, `source`, `updated`, `transcript_path` | Creates or updates a chat; if `transcript_path` is present, the *Log Watcher* begins tailing it |
+| `"set"`   | `id`, `status` (enum: idle/working/awaiting/done/error); optional `label`, `source`, `updated`, `transcript_path` | Creates or updates a chat; if `transcript_path` is present, the *Log Watcher* begins tailing it |
 | `"clear"` | `id`                                                 | Deletes the chat and stops watching its transcript                                       |
 | `"config"`| `key` (`"alwaysOnTop"` \| `"position"` \| `"openUrl"`), `value` | Drives a main-process side effect (window z-order, reposition, shell.openExternal) — not persisted |
 
 A CSRF guard rejects any POST whose `Origin` header is set to a real http/https origin. Requests with no `Origin` (curl, Node, Python) and `null` origin (the file-loaded renderer) are accepted.
-
-### MCP tools (stdio, one server per Claude Code session)
-
-| Tool            | Args                              | Behavior                                                                                 |
-|-----------------|-----------------------------------|------------------------------------------------------------------------------------------|
-| `set_status`    | `chat_id`, `status`, `label?`     | POSTs `{action: "set", ...}` to the widget. First call locks `chat_id` for the lifetime of the MCP process; later calls reuse the locked id |
-| `clear_status`  | `chat_id`                         | POSTs `{action: "clear", id: lockedChatId ?? chat_id}`                                   |
 
 ### Electron IPC (renderer ↔ main)
 
@@ -96,7 +82,6 @@ A CSRF guard rejects any POST whose `Origin` header is set to a real http/https 
 - HTTP request/response bodies are JSON with `Content-Type: application/json`.
 - SSE frames are `data: <json>\n\n` where `<json>` is a JSON array of chat objects.
 - Chat objects on the wire: `{ id, status, label, source, updated, transcript_path?, model?, inputTokens?, originalPrompt? }`.
-- MCP frames are JSON-RPC 2.0 over stdio, handled by `@modelcontextprotocol/sdk`.
 
 ## External trigger flows
 
@@ -148,45 +133,7 @@ Claude Code fires one of five hook events per session stage. A single Python ent
 3. If `action === "clear"`, stop watching the prior transcript via `logWatcher.stopWatching()` and delete the entry
 4. Call `widget.broadcast()` to fan out to all SSE clients
 
-### B. MCP tool invocation
-
-Claude Code spawns the MCP server as a child process at session start. The model can call `set_status` or `clear_status` at any point during a turn — most commonly mid-response to surface `thinking` or `error` states the lifecycle hooks don't see.
-
-**Triggers:**
-- Model invokes `set_status` tool
-- Model invokes `clear_status` tool
-
----
-
-***Claude Code CLI***
-
-1. Route the tool call to the running MCP server over stdio (JSON-RPC 2.0)
-
-```
-⇩   JSON-RPC call:
-⇩   { method: "tools/call", params: { name: "set_status"|"clear_status", arguments: {...} } }
-```
-
-***MCP Server***
-
-1. Zod-validate the arguments against the registered tool schema
-2. For `set_status`: if `lockedChatId` is unset, lock to the incoming `chat_id`; otherwise ignore the incoming value and use the locked id
-3. Log the invocation to `mcp.log` via `server.log()`
-4. Forward to the widget via `server.postStatus()` (2s timeout, errors logged but never surfaced to the MCP client)
-5. Return a human-readable confirmation string to Claude Code
-
-```
-⇩   POST /api/status:
-⇩   {action: "set", id: lockedChatId, status, label, source: "claude", updated}
-⇩   — or —
-⇩   {action: "clear", id: lockedChatId}
-```
-
-***Dashboard Widget***
-
-1. Same HTTP handler as flow A — merge into `chats` Map and `widget.broadcast()`
-
-### C. Transcript file mutation → log watcher
+### B. Transcript file mutation → log watcher
 
 Once the *Claude Code Hook* has forwarded a `transcript_path`, the watcher tails the JSONL and pushes incremental state + token updates without any further external messaging. This is the only flow where the trigger is a filesystem event rather than an HTTP/RPC call.
 
@@ -226,7 +173,7 @@ Once the *Claude Code Hook* has forwarded a `transcript_path`, the watcher tails
 
 On parse error or unreadable transcript, `logWatcher.drain()` emits an error to `widget.onWatcherError()` instead, which — except for an expected `ENOENT` during the SessionStart race — creates a synthetic error row with `id: "watcher-error"`, `source: "watcher"` and appends a line to `widget.log`.
 
-### D. OpenWebUI filter lifecycle
+### C. OpenWebUI filter lifecycle
 
 OpenWebUI invokes user-registered Filter functions' `inlet` before the model sees a request and `outlet` after the response is generated. The dashboard integration maps those to `working`/`done`.
 
@@ -263,7 +210,7 @@ OpenWebUI invokes user-registered Filter functions' `inlet` before the model see
 
 1. Same merge + broadcast path as flow A
 
-### E. Codex shell wrapper
+### D. Codex shell wrapper
 
 Invoked when the user types `codex <task>` after sourcing `codex_hook.sh` in their shell. The function wraps the real `codex` binary with before/after curl POSTs.
 
@@ -292,7 +239,7 @@ Invoked when the user types `codex <task>` after sourcing `codex_hook.sh` in the
 
 1. Same merge + broadcast path as flow A
 
-### F. Generic Python client
+### E. Generic Python client
 
 For scripts, notebooks, or agents that don't fit the other integrations. No session lifecycle — the caller decides when to report and which labels to use.
 
@@ -320,7 +267,7 @@ For scripts, notebooks, or agents that don't fit the other integrations. No sess
 
 1. Same merge + broadcast path as flow A
 
-### G. Renderer user actions
+### F. Renderer user actions
 
 Clicks inside the widget window. The renderer cannot talk to main memory directly for state changes — it uses the same HTTP endpoint as every other client, plus a small set of Electron IPC channels for window-level operations that must happen in main.
 
@@ -419,7 +366,7 @@ Clicks inside the widget window. The renderer cannot talk to main memory directl
 </tr>
 </table>
 
-### H. Tray icon
+### G. Tray icon
 
 **Triggers:**
 - User left-clicks the system tray icon
@@ -456,7 +403,7 @@ Every mutation to the `chats` Map in the *Dashboard Widget* calls `widget.broadc
 ***Renderer***
 
 1. `EventSource.onmessage` parses the JSON array and calls `widget.render()` (script-local)
-2. `render()` sorts by status priority (working → thinking → error → idle → done) then by `updated` desc
+2. `render()` sorts by status priority (working → awaiting → error → idle → done) then by `updated` desc
 3. For each chat, `makeChat()` builds the DOM row — source icon, pulsing dot, name/label, status badge, dismiss button, and context-token readout (text `round(inputTokens / 1000)k`, color linearly interpolated between the configured `context_bar_thresholds` stops based on `inputTokens / context_window_tokens[model]`). The readout always occupies a reserved slot; when `inputTokens` is absent the slot stays invisible but preserves row-to-row alignment
 4. For every status except `awaiting` and `idle`, the label is `originalPrompt || label` — the sticky user prompt, so intra-task inputs like `y` to an approval prompt don't overwrite the task title and a freshly-finished `done` row shows the task that ran (not the stale `needs approval: ...` label left over from the preceding `awaiting`). `originalPrompt` is populated by `chat-state.cjs#nextOriginalPrompt` on the widget side: set on `working` at task boundaries (fresh chat / previous status `done` or `idle` / not yet recorded), cleared on `idle`, otherwise preserved. `awaiting` and `idle` rows show the raw `label` — the informational "what's blocking" message
 5. `notify()` fires a desktop Notification on `done`/`error` transitions when the in-renderer notifications flag is on
@@ -466,7 +413,6 @@ Every mutation to the `chats` Map in the *Dashboard Widget* calls `widget.broadc
 | Boundary                             | On failure                                                                                        |
 |--------------------------------------|--------------------------------------------------------------------------------------------------|
 | Any integration → widget HTTP POST   | Client swallows the error (2s timeout on the Python/Node variants; backgrounded curl in bash). Widget-missing is the expected steady state; nothing is retried |
-| MCP server → widget HTTP POST        | Logged to `mcp.log` with the action, status, and elapsed ms. Never surfaced as a tool error — would show up as noise in Claude Code |
 | Renderer ↔ widget SSE                | On `EventSource.onerror`, the renderer closes, sleeps `retryDelay` (starts at 1000ms, multiplies by 1.5 on each failure, capped at 10000ms), and reconnects. Successful messages reset the delay to 1000ms |
 | Log watcher: `stat`/`read`/`infer`   | `widget.onWatcherError()` logs to `widget.log` and inserts a synthetic `{id: "watcher-error", status: "error", source: "watcher"}` row. ENOENT during SessionStart is expected and not surfaced — the next hook event retries implicitly by re-POSTing `transcript_path` |
 | Hook payload stdin                   | Malformed JSON is caught and replaced with `{}`; the hook still POSTs with just the cwd-derived chat_id |

@@ -58,7 +58,7 @@ status("my-task", "done")
 |-------|------|----------|-------------|
 | `action` | `"set"` or `"clear"` | yes | Set or remove a session |
 | `id` | string | yes | Unique session identifier |
-| `status` | enum | for `set` | `idle`, `working`, `thinking`, `awaiting`, `done`, `error` |
+| `status` | enum | for `set` | `idle`, `working`, `awaiting`, `done`, `error` |
 | `label` | string | no | Short description of current activity |
 | `source` | string | no | Tool name — `claude`, `codex`, `openwebui`, or anything else |
 | `updated` | number | no | Unix timestamp in milliseconds |

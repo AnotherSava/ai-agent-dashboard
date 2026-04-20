@@ -197,11 +197,11 @@ function stopAll() {
 // Pure function — no side effects, no Date.now() call (caller sets .updated if wanted).
 // The `now` parameter is injectable for test determinism.
 //
-// Policy: watcher can only transition state to "working"/"thinking". Other
-// terminal states (done/idle/awaiting/error) are hook-authoritative. The watcher
+// Policy: watcher can only transition state to "working". Other terminal
+// states (done/idle/awaiting/error) are hook-authoritative. The watcher
 // often reads text-in-flight as "done" before the Stop hook fires — allowing
 // that downgrade would flip rows back to done during fresh turns.
-const WATCHER_ALLOWED_TRANSITIONS = new Set(["working", "thinking"]);
+const WATCHER_ALLOWED_TRANSITIONS = new Set(["working"]);
 
 function mergeWatcherUpdate(existing, update, now = Date.now()) {
   const next = { ...existing };
